@@ -7,13 +7,17 @@ import './Ownable.sol';
 
 interface StakingContract {
     function ownerOf(uint256 tokenId) external view returns (address owner);
-    function getNFTValue(uint _tokenId) public view returns(uint);
-    function incrementNFTValue (uint _tokenId) public onlyTradingPlatform();
-    function decrementNFTValue (uint _tokenId, uint _amount) public onlyTradingPlatform();
+}
+
+interface INFYStakingNFT {
+    function nftTokenId(address _stakeholder) external view returns(uint256 id);
 }
 
 contract NFYTradingPlatform is Ownable {
     using SafeMath for uint;
+    
+    address nftContract;
+    INFYStakingNFT public StakingNFT;
 
     modifier stakeNFTExist(bytes32 _ticker) {
         require(tokens[_ticker].tokenAddress != address(0), "staking NFT does not exist");
@@ -44,10 +48,15 @@ contract NFYTradingPlatform is Ownable {
     bytes32[] public stakeTokenList;
     mapping(bytes32 => StakeToken) public tokens;
 
-    mapping(address => mapping(bytes32 => uint)) public traderNFT;
+    mapping(uint => mapping(bytes32 => uint)) public traderBalances;
 
     mapping(bytes32 => mapping(uint => Order[])) public orderBook;
     uint public nextOrderId;
+    
+    constructor(address _nftContract, address _StakingNFT) public {
+        nftContract = _nftContract;
+        StakingNFT = INFYStakingNFT(_StakingNFT);
+    }
 
     // Function that adds staking NFT
     function addToken( bytes32 _ticker, address _tokenAddress, StakingContract _stakingContract) onlyOwner() external {
@@ -56,32 +65,33 @@ contract NFYTradingPlatform is Ownable {
     }
 
     // Function that allows user to deposit staking NFT
-    function depositNFT(uint _tokenId, bytes32 _ticker) stakeNFTExist(_ticker) external {
-        require(traderNFT[_msgSender()][_ticker] == 0, "Already have stake NFT in system");
+    function depositNFT(bytes32 _ticker,uint _tokenId, uint _amount) stakeNFTExist(_ticker) external {
         require(tokens[_ticker].stakingContract.ownerOf(_tokenId) == _msgSender(), "Owner of token is not user");
 
-        IERC721(tokens[_ticker].tokenAddress).transferFrom(
-            _msgSender(), address(this), _tokenId
-        );
+        nftContract.call(abi.encodeWithSignature("decrementNFTValue(uint256,uint256)", _tokenId, _amount));
 
-        traderNFT[_msgSender()][_ticker] = _tokenId;
+        traderNFT[_tokenId][_ticker] = _amount;
     }
 
     // Function that allows a user to withdraw their staking NFT
-    function withdrawNFT(uint _tokenId, bytes32 _ticker) stakeNFTExist(_ticker) external {
-        require(traderNFT[_msgSender()][_ticker] == _tokenId, "User does not have this staking NFT");
+    function withdrawNFT(bytes32 _ticker, uint amount) stakeNFTExist(_ticker) external {
+        uint id  = StakingNFT.nftTokenId(_msgSender());
+         if(id== 0){
+             nftContract.call(abi.encodeWithSignature("addStakeholderExternal(address)", _msgSender()));
+        }
+        require(
+            traderBalances[id][_ticker] >= amount,
+            'balance too low'
+        ); 
 
-        traderNFT[_msgSender()][_ticker] = 0;
+        nftContract.call(abi.encodeWithSignature("incrementNFTValue(uint256,uint256)", id, _amount));
 
-        IERC721(tokens[_ticker].tokenAddress).transfer(_msgSender(), _tokenId);
+        traderNFT[id][_ticker] = traderNFT[id][_ticker].sub(amount);
     }
 
-    //function sellStake(bytes32 _ticker, uint _amount, uint _price) stakeNFTExist(_ticker) public {
-    //}
-
     // Function that will allow a user to buy a stake in their desired pool
-    function order(bytes32 _ticker, uint _amount, uint _tokenId, uint _price, Side _side) stakeNFTExist(_ticker) public {
-
+    function order(bytes32 _ticker, uint _amount, uint _price, Side _side) stakeNFTExist(_ticker) public {
+        uint id  = StakingNFT.nftTokenId(_msgSender());
         require(_amount > 0, "Amount can not be 0");
 
         if(_side == Side.BUY) {
@@ -90,10 +100,10 @@ contract NFYTradingPlatform is Ownable {
         }
 
         else {
-            //require(tokens[_ticker].stakingContract.ownerOf(_tokenId) == _msgSender(), "Owner of token is not user");
-            require(traderNFT[_msgSender()][_ticker] == _tokenId, "User does not have this staking NFT");
-            uint _NFTValue = tokens[_ticker].stakingContract.getNFTValue(_tokenId);
-            require(_NFTValue >= _amount, "Not enough wrapped in NFT");
+             require(
+                traderBalances[id][_ticker] >= amount, 
+                'token balance too low'
+            );
         }
 
         Order[] storage orders = orderBook[_ticker][uint(_side)];
@@ -107,6 +117,21 @@ contract NFYTradingPlatform is Ownable {
             _price,
             now
         ));
+        
+        uint i = orders.length > 0 ? orders.length - 1 : 0;
+        while(i > 0) {
+            if(_side == Side.BUY && orders[i - 1].price > orders[i].price) {
+                break;   
+            }
+            if(_side == Side.SELL && orders[i - 1].price < orders[i].price) {
+                break;   
+            }
+            Order memory order = orders[i - 1];
+            orders[i - 1] = orders[i];
+            orders[i] = order;
+            i--;
+        }
+        nextOrderId++;
 
     }
 
