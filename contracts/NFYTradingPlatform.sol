@@ -36,7 +36,8 @@ contract NFYTradingPlatform is Ownable {
 
     struct Order {
         uint id;
-        uint trader;
+        uint traderNFY;
+        address payable userAddress;
         Side side;
         bytes32 ticker;
         uint amount;
@@ -146,6 +147,7 @@ contract NFYTradingPlatform is Ownable {
         orders.push(Order(
             nextOrderId,
             id,
+            msg.sender,
             _side,
             _ticker,
             _amount,
@@ -199,7 +201,7 @@ contract NFYTradingPlatform is Ownable {
                 nextTradeId,
                 orders[i].id,
                 ticker,
-                orders[i].trader,
+                orders[i].traderNFY,
                 id,
                 matched,
                 orders[i].price,
@@ -207,7 +209,7 @@ contract NFYTradingPlatform is Ownable {
             );
             if(side == Side.SELL) {
                 traderBalances[id][ticker] = traderBalances[id][ticker].sub(matched);
-                traderBalances[orders[i].trader][ticker] = traderBalances[orders[i].trader][ticker].add(matched);
+                traderBalances[orders[i].traderNFY][ticker] = traderBalances[orders[i].traderNFY][ticker].add(matched);
                 msg.sender.transfer(matched.mul(orders[i].price));
             }
             if(side == Side.BUY) {
@@ -216,8 +218,8 @@ contract NFYTradingPlatform is Ownable {
                     'eth balance too low'
                 );
                 traderBalances[id][ticker] = traderBalances[id][ticker].add(matched);
-                traderBalances[orders[i].trader][ticker] = traderBalances[orders[i].trader][ticker].sub(matched);
-                msg.sender.transfer(matched.mul(orders[i].price));
+                traderBalances[orders[i].traderNFY][ticker] = traderBalances[orders[i].traderNFY][ticker].sub(matched);
+                orders[i].userAddress.transfer(matched.mul(orders[i].price));
             }
             nextTradeId++;
             i++;
