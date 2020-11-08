@@ -175,6 +175,7 @@ contract NFYTradingPlatform is Ownable {
         bytes32 ticker,
         uint amount,
         Side side)
+        payable
         stakeNFTExist(ticker)
         tokenIsNotDai(ticker)
         external {
@@ -206,19 +207,17 @@ contract NFYTradingPlatform is Ownable {
             );
             if(side == Side.SELL) {
                 traderBalances[id][ticker] = traderBalances[id][ticker].sub(matched);
-                traderBalances[id][ETH] = traderBalances[id][ETH].add(matched.mul(orders[i].price));
                 traderBalances[orders[i].trader][ticker] = traderBalances[orders[i].trader][ticker].add(matched);
-                traderBalances[orders[i].trader][ETH] = traderBalances[orders[i].trader][ETH].sub(matched.mul(orders[i].price));
+                msg.sender.transfer(matched.mul(orders[i].price));
             }
             if(side == Side.BUY) {
                 require(
-                    traderBalances[id][ETH] >= matched.mul(orders[i].price),
+                    msg.value >= matched.mul(orders[i].price),
                     'eth balance too low'
                 );
                 traderBalances[id][ticker] = traderBalances[id][ticker].add(matched);
-                traderBalances[id][ETH] = traderBalances[id][ETH].sub(matched.mul(orders[i].price));
                 traderBalances[orders[i].trader][ticker] = traderBalances[orders[i].trader][ticker].sub(matched);
-                traderBalances[orders[i].trader][ETH] = traderBalances[orders[i].trader][ETH].add(matched.mul(orders[i].price));
+                msg.sender.transfer(matched.mul(orders[i].price));
             }
             nextTradeId++;
             i++;
