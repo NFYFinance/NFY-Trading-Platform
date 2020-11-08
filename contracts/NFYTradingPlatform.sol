@@ -191,7 +191,7 @@ contract NFYTradingPlatform is Ownable {
         Order[] storage orders = orderBook[ticker][uint(side == Side.BUY ? Side.SELL : Side.BUY)];
         uint i;
         uint remaining = amount;
-        
+
         while(i < orders.length && remaining > 0) {
             uint available = orders[i].amount.sub(orders[i].filled);
             uint matched = (remaining > available) ? available : remaining;
