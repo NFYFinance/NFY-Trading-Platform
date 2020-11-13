@@ -14,7 +14,7 @@ contract NFYTradingPlatform is Ownable {
  
     bytes32 constant ETH = 'ETH';
     bytes32[] public stakeTokenList;
-    uint nextTradeId;
+    uint public nextTradeId;
     uint public nextOrderId;
 
     enum Side {
@@ -70,7 +70,8 @@ contract NFYTradingPlatform is Ownable {
         require(tokens[_ticker].nftContract.ownerOf(_tokenId) == _msgSender(), "Owner of token is not user");
         require(traderBalances[_msgSender()][_ticker] >= _amount, 'balance too low');
 
-        tokens[_ticker].stakingContract.call(abi.encodeWithSignature("decrementNFTValue(uint256,uint256)", _tokenId, _amount));
+        (bool success, bytes memory data) = tokens[_ticker].stakingContract.call(abi.encodeWithSignature("decrementNFTValue(uint256,uint256)", _tokenId, _amount));
+        require(success == true, "decrement call failed");
 
         traderBalances[_msgSender()][_ticker] = traderBalances[_msgSender()][_ticker].add(_amount);
     }
@@ -80,11 +81,14 @@ contract NFYTradingPlatform is Ownable {
         uint id = tokens[_ticker].nftContract.nftTokenId(_msgSender());
 
         if(id == 0){
-             tokens[_ticker].stakingContract.call(abi.encodeWithSignature("addStakeholderExternal(address)", _msgSender()));
+             (bool success, bytes memory data) = tokens[_ticker].stakingContract.call(abi.encodeWithSignature("addStakeholderExternal(address)", _msgSender()));
+             require(success == true, "add stakeholder call failed");
+
              id = tokens[_ticker].nftContract.nftTokenId(_msgSender());
         }     
 
-        tokens[_ticker].stakingContract.call(abi.encodeWithSignature("incrementNFTValue(uint256, uint256)", id, _amount));
+        (bool success, bytes memory data) =  tokens[_ticker].stakingContract.call(abi.encodeWithSignature("incrementNFTValue(uint256, uint256)", id, _amount));
+        require(success == true, "increment call failed");
 
         traderBalances[_msgSender()][_ticker] = traderBalances[_msgSender()][_ticker].sub(_amount);
     }
