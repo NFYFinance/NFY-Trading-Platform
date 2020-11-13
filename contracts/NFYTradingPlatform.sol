@@ -86,7 +86,7 @@ contract NFYTradingPlatform is Ownable {
 
         tokens[_ticker].stakingContract.call(abi.encodeWithSignature("incrementNFTValue(uint256, uint256)", id, _amount));
 
-        traderBalances[id][_ticker] = traderBalances[id][_ticker].sub(_amount);
+        traderBalances[_msgSender()][_ticker] = traderBalances[_msgSender()][_ticker].sub(_amount);
     }
 
     // Function that gets total all orders
@@ -109,6 +109,7 @@ contract NFYTradingPlatform is Ownable {
             _tokens[i] = StakeToken(
               tokens[stakeTokenList[i]].ticker,
               tokens[stakeTokenList[i]].tokenAddress,
+              tokens[stakeTokenList[i]].nftContract,
               tokens[stakeTokenList[i]].stakingContract
             );
         }
