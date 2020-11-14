@@ -66,7 +66,7 @@ contract NFYTradingPlatform is Ownable {
     }
 
     // Function that allows user to deposit staking NFT
-    function depositNFT(bytes32 _ticker, uint _tokenId, uint _amount) stakeNFTExist(_ticker) external {
+    function depositStake(bytes32 _ticker, uint _tokenId, uint _amount) stakeNFTExist(_ticker) external {
         require(tokens[_ticker].nftContract.ownerOf(_tokenId) == _msgSender(), "Owner of token is not user");
         require(traderBalances[_msgSender()][_ticker] >= _amount, 'balance too low');
 
@@ -77,7 +77,7 @@ contract NFYTradingPlatform is Ownable {
     }
 
     // Function that allows a user to withdraw their staking NFT
-    function withdrawNFT(bytes32 _ticker, uint _amount) stakeNFTExist(_ticker) external {
+    function withdrawStake(bytes32 _ticker, uint _amount) stakeNFTExist(_ticker) external {
         uint id = tokens[_ticker].nftContract.nftTokenId(_msgSender());
 
         if(id == 0){
@@ -167,14 +167,7 @@ contract NFYTradingPlatform is Ownable {
     }
 
     // Function that creates a market order
-    function createMarketOrder(
-        bytes32 ticker,
-        uint amount,
-        Side side)
-        payable
-        stakeNFTExist(ticker)
-        tokenIsNotETH(ticker)
-        external {        
+    function createMarketOrder(bytes32 ticker, uint amount, Side side) payable stakeNFTExist(ticker) tokenIsNotETH(ticker) external {
         if(side == Side.SELL) {
             require(
                 traderBalances[_msgSender()][ticker] >= amount, 
