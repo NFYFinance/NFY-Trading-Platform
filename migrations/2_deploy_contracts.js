@@ -6,7 +6,7 @@ const NFYStaking = artifacts.require("mocks/NFYStaking");
 const LPStaking = artifacts.require("mocks/LPStaking");
 const RewardPool = artifacts.require("mocks/RewardPool");
 const Token = artifacts.require("mocks/Demo");
-const LP = artifacts.require("mocks/DemoLP")
+const LP = artifacts.require("mocks/DemoLP");
 
 module.exports = async function (deployer, networks, accounts) {
 
@@ -93,13 +93,6 @@ module.exports = async function (deployer, networks, accounts) {
     await token.approve(nfyStaking.address, allowance, {from: user2});
     await token.approve(nfyStaking.address, allowance, {from: user3});
 
-    // Transfer ownership to secured secured account
-    await nfyStakingNFT.transferOwnership(owner);
-    await lpStakingNFT.transferOwnership(owner);
-    await nfyStaking.transferOwnership(owner);
-    await lpStaking.transferOwnership(owner);
-    await rewardPool.transferOwnership(owner);
-
     // Stake DEMO LP Tokens
     await lpStaking.stakeLP(stakeAmount, {from: user});
     await lpStaking.stakeLP(stakeAmount, {from: user2});
@@ -120,6 +113,11 @@ module.exports = async function (deployer, networks, accounts) {
     await deployer.deploy(NFYTradingPlatform);
     const tradingPlatform = await NFYTradingPlatform.deployed();
 
-    // Transfer ownership
+    // Transfer ownership to secured secured account
+    await nfyStakingNFT.transferOwnership(owner);
+    await lpStakingNFT.transferOwnership(owner);
+    await nfyStaking.transferOwnership(owner);
+    await lpStaking.transferOwnership(owner);
+    await rewardPool.transferOwnership(owner);
     await tradingPlatform.transferOwnership(owner);
 };
