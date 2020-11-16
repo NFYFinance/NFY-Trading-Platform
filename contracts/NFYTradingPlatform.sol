@@ -4,6 +4,7 @@ pragma experimental ABIEncoderV2;
 import 'https://github.com/OpenZeppelin/openzeppelin-contracts/blob/master/contracts/math/SafeMath.sol';
 import './Ownable.sol';
 
+
 interface NFTContract {
     function ownerOf(uint256 tokenId) external view returns (address owner);
     function nftTokenId(address _stakeholder) external view returns(uint256 id);
@@ -12,7 +13,9 @@ interface NFTContract {
 
 interface NFYContract {
     function getNFTBalance(uint256 _tokenId) external view returns(uint256 _amountStaked);
-    function unstakeNFY(uint256 _tokenId) external;
+    function addStakeholderExternal(address _stakeholder) external;
+    function incrementNFTValue (uint256 _tokenId, uint256 _amount) external;
+    function decrementNFTValue (uint256 _tokenId, uint256 _amount) external;
 }
 
 contract NFYTradingPlatform is Ownable {
@@ -65,44 +68,49 @@ contract NFYTradingPlatform is Ownable {
         uint price,
         uint date
     );
+    
+    
 
     // Function that adds staking NFT
     function addToken(string memory ticker,address _tokenAddress, NFTContract _NFTContract, address _NFYaddress, address _StakingContract, NFYContract _nfyContract) onlyOwner() external {
         bytes32 _ticker = stringToBytes32(ticker);       
-        tokens[_ticker] = StakeToken(_ticker, _tokenAddress, _NFTContract, _NFTaddress, _StakingContract, _nfyContract);
+        tokens[_ticker] = StakeToken(_ticker, _tokenAddress, _NFTContract, _NFYaddress, _StakingContract, _nfyContract);
         stakeTokenList.push(_ticker);
     }
 
     // Function that allows user to deposit staking NFT
     function depositStake(string memory ticker, uint _tokenId, uint _amount) stakeNFTExist(ticker) external {
-        bytes32 _ticker = stringToBytes32(ticker); 
+        bytes32 _ticker = stringToBytes32(ticker);
         require(tokens[_ticker].nftContract.ownerOf(_tokenId) == _msgSender(), "Owner of token is not user");
 
-        (bool success, bytes memory data) = tokens[_ticker].stakingContract.call(abi.encodeWithSignature("decrementNFTValue(uint256,uint256)", _tokenId, _amount));
-        require(success == true, "decrement call failed");
+        tokens[_ticker].nfyContract.decrementNFTValue(_tokenId, _amount);
 
         traderBalances[_msgSender()][_ticker] = traderBalances[_msgSender()][_ticker].add(_amount);
-        if(tokens[_ticker].nfyContract.getNFTBalance(_tokenId) == 0){
-            tokens[_ticker].nfyContract.unstakeNFY(_tokenId);
-            tokens[_ticker].nftContract.revertNftTokenId(_msgSender(),_tokenId);
-        } 
     }
 
     // Function that allows a user to withdraw their staking NFT
     function withdrawStake(string memory ticker, uint _amount) stakeNFTExist(ticker) external {
         bytes32 _ticker = stringToBytes32(ticker); 
-        if(tokens[_ticker].nftContract.nftTokenId(_msgSender()) == 0){
-            address _stakeholder = _msgSender();
-             (bool success, bytes memory data) = tokens[_ticker].stakingContract.call(abi.encodeWithSignature("addStakeholderExternal(address)", _stakeholder));
-             require(success == true, "add stakeholder call failed");
-        } 
+        
+        if(idCheck(_ticker) == 0){
+            addStakeholder(_ticker);
+        }
+        
         uint _tokenId = tokens[_ticker].nftContract.nftTokenId(_msgSender());
         require(traderBalances[_msgSender()][_ticker] >= _amount, 'balance too low');
 
-        (bool success, bytes memory data) = tokens[_ticker].stakingContract.call(abi.encodeWithSignature("incrementNFTValue(uint256,uint256)", _tokenId, _amount));
-        require(success == true, "increment call failed");
+         tokens[_ticker].nfyContract.incrementNFTValue(_tokenId, _amount);
 
         traderBalances[_msgSender()][_ticker] = traderBalances[_msgSender()][_ticker].sub(_amount);
+    }
+    
+    function addStakeholder(bytes32 _ticker) private {
+        address _stakeholder = _msgSender();
+        tokens[_ticker].nfyContract.addStakeholderExternal(_stakeholder);
+    }
+    
+    function idCheck(bytes32 _ticker) private view returns(uint) {
+        return tokens[_ticker].nftContract.nftTokenId(_msgSender());
     }
 
     // // Function that gets total all orders
@@ -250,29 +258,7 @@ contract NFYTradingPlatform is Ownable {
        _;
    }
    
-   //HELPER FUNCTIONS
-    
-    //CONVERT BYTES32 TO STRING
-    
-    function bytes32ToString(bytes32 _x) 
-    public pure 
-    returns (string memory result) {
-        bytes memory bytesString = new bytes(32);
-        uint charCount = 0;
-        for (uint j = 0; j < 32; j++) {
-            byte char = byte(bytes32(uint(_x) * 2 ** (8 * j)));
-            if (char != 0) {
-                bytesString[charCount] = char;
-                charCount++;
-            }
-        }
-        bytes memory bytesStringTrimmed = new bytes(charCount);
-        for (uint j = 0; j < charCount; j++) {
-            bytesStringTrimmed[j] = bytesString[j];
-        }
-        
-        result = string(bytesStringTrimmed);
-    }
+   //HELPER FUNCTION
     
     // CONVERT STRING TO BYTES32
     
