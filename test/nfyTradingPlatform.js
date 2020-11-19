@@ -203,7 +203,7 @@ contract("NFYTradingPlatform", async (accounts) => {
         });
     });
 
-    describe("# depositStake()", () => {
+    describe.skip("# depositStake()", () => {
         it("should let user deposit stake", async () => {
             await truffleAssert.passes(tradingPlatform.addToken("NFYNFT", token.address, nfyStakingNFT.address, token.address, nfyStaking.address, token.address, {from: owner}));
             await truffleAssert.passes(tradingPlatform.depositStake("NFYNFT", 1, depositAmount, {from: user}));
@@ -238,9 +238,35 @@ contract("NFYTradingPlatform", async (accounts) => {
         });
     });
 
-    /*describe("# withdrawStake()", () => {
-        it("should mint NFT if user does not have one", async () => {
+    describe("# withdrawStake()", () => {
+        it("should revert if user tries to withdraw with no balance", async () => {
+            await truffleAssert.passes(tradingPlatform.addToken("NFYNFT", token.address, nfyStakingNFT.address, token.address, nfyStaking.address, token.address, {from: owner}));
 
+            await truffleAssert.reverts(tradingPlatform.withdrawStake("NFYNFT", web3.utils.toWei('1', 'ether'), {from: user}));
         });
-    });*/
+
+        it("should revert if user tries to withdraw more than balance", async () => {
+            await truffleAssert.passes(tradingPlatform.addToken("NFYNFT", token.address, nfyStakingNFT.address, token.address, nfyStaking.address, token.address, {from: owner}));
+
+            await truffleAssert.passes(tradingPlatform.depositStake("NFYNFT", 1, depositAmount, {from: user}));
+
+            await truffleAssert.reverts(tradingPlatform.withdrawStake("NFYNFT", web3.utils.toWei('4', 'ether'), {from: user}));
+        });
+
+        it("should allow user to withdraw if less than balance", async () => {
+            await truffleAssert.passes(tradingPlatform.addToken("NFYNFT", token.address, nfyStakingNFT.address, token.address, nfyStaking.address, token.address, {from: owner}));
+
+            await truffleAssert.passes(tradingPlatform.depositStake("NFYNFT", 1, depositAmount, {from: user}));
+
+            await truffleAssert.passes(tradingPlatform.withdrawStake("NFYNFT", web3.utils.toWei('2', 'ether'), {from: user}));
+        });
+
+        it("should allow user to withdraw if equal to balance", async () => {
+            await truffleAssert.passes(tradingPlatform.addToken("NFYNFT", token.address, nfyStakingNFT.address, token.address, nfyStaking.address, token.address, {from: owner}));
+
+            await truffleAssert.passes(tradingPlatform.depositStake("NFYNFT", 1, depositAmount, {from: user}));
+
+            await truffleAssert.passes(tradingPlatform.withdrawStake("NFYNFT", depositAmount, {from: user}));
+        });
+    });
 });
