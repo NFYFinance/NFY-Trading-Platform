@@ -225,6 +225,7 @@ contract NFYTradingPlatform is Ownable {
 
         Order[] storage orders = orderBook[_ticker][uint(side == Side.BUY ? Side.SELL : Side.BUY)];
         if(orders.length == 0){
+            side == Side.BUY ? Side.SELL : Side.BUY; 
             createLimitOrder(ticker,amount,price, side);
         }
         else{
@@ -235,6 +236,7 @@ contract NFYTradingPlatform is Ownable {
                 uint i;
                 while(i < orders.length && remaining > 0) {
                     if(orders.length  - i  == 1){
+                        side == Side.BUY ? Side.SELL : Side.BUY;
                        createLimitOrder(ticker,amount,price, side);
                        d = loopCountStart;
                        i = orders.length;
@@ -353,5 +355,4 @@ contract NFYTradingPlatform is Ownable {
             result := mload(add(tempSource, 32))
         }
     }
-
 }
