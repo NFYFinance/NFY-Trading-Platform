@@ -1,14 +1,19 @@
 pragma solidity 0.6.10;
 pragma experimental ABIEncoderV2;
 
-import '@openzeppelin/contracts/math/SafeMath.sol';
+import "@openzeppelin/contracts/math/SafeMath.sol";
 import './Ownable.sol';
 
 interface NFTContract {
     function ownerOf(uint256 tokenId) external view returns (address owner);
     function nftTokenId(address _stakeholder) external view returns(uint256 id);
+    function revertNftTokenId(address _stakeholder, uint256 _tokenId) external;
 }
 
+interface NFYContract {
+    function getNFTBalance(uint256 _tokenId) external view returns(uint256 _amountStaked);
+    function unstakeNFY(uint256 _tokenId) external;
+}
 
 contract NFYTradingPlatform is Ownable {
     using SafeMath for uint;
@@ -27,7 +32,9 @@ contract NFYTradingPlatform is Ownable {
         bytes32 ticker;
         address tokenAddress;
         NFTContract nftContract;
+        address nftAddress;
         address stakingContract;
+        NFYContract nfyContract;
     }
 
     struct Order {
@@ -40,7 +47,6 @@ contract NFYTradingPlatform is Ownable {
         uint price;
         uint date;
     }
-
 
     mapping(bytes32 => StakeToken) public tokens;
 
@@ -60,10 +66,17 @@ contract NFYTradingPlatform is Ownable {
         uint date
     );
 
-    // Function that adds staking NFT
-    function addToken( string memory ticker, address _tokenAddress, NFTContract _NFTContract, address _StakingContract) onlyOwner() external {
+    // Function that gets balance of a user
+    function getTraderBalance(address _user, string memory ticker) public view returns(uint) {
         bytes32 _ticker = stringToBytes32(ticker);
-        tokens[_ticker] = StakeToken(_ticker, _tokenAddress, _NFTContract, _StakingContract);
+
+        return traderBalances[_user][_ticker];
+    }
+
+    // Function that adds staking NFT
+    function addToken(string memory ticker, address _tokenAddress, NFTContract _NFTContract, address _NFYaddress, address _StakingContract, NFYContract _nfyContract) onlyOwner() external {
+        bytes32 _ticker = stringToBytes32(ticker);
+        tokens[_ticker] = StakeToken(_ticker, _tokenAddress, _NFTContract, _NFYaddress, _StakingContract, _nfyContract);
         stakeTokenList.push(_ticker);
     }
 
@@ -71,60 +84,59 @@ contract NFYTradingPlatform is Ownable {
     function depositStake(string memory ticker, uint _tokenId, uint _amount) stakeNFTExist(ticker) external {
         bytes32 _ticker = stringToBytes32(ticker);
         require(tokens[_ticker].nftContract.ownerOf(_tokenId) == _msgSender(), "Owner of token is not user");
+        //require(tokens[_ticker].nfyContract.getNFTBalance(_tokenId) >= _amount, "NFT does not have enough");
 
-  /*      (bool success, bytes memory data) = tokens[_ticker].stakingContract.staticcall(abi.encodeWithSignature("getNFTBalance(uint)", _tokenId));
-        require(success == true, "static call failed");*/
-
-        (bool success, bytes memory data) = tokens[_ticker].stakingContract.call(abi.encodeWithSignature("decrementNFTValue(uint256, uint256)", _tokenId, _amount));
+        (bool success, bytes memory data) = tokens[_ticker].stakingContract.call(abi.encodeWithSignature("decrementNFTValue(uint256,uint256)", _tokenId, _amount));
         require(success == true, "decrement call failed");
 
         traderBalances[_msgSender()][_ticker] = traderBalances[_msgSender()][_ticker].add(_amount);
+
     }
 
     // Function that allows a user to withdraw their staking NFT
     function withdrawStake(string memory ticker, uint _amount) stakeNFTExist(ticker) external {
         bytes32 _ticker = stringToBytes32(ticker);
-        require(traderBalances[_msgSender()][_ticker] >= _amount, 'balance too low');
-        uint id = tokens[_ticker].nftContract.nftTokenId(_msgSender());
-
-        if(id == 0){
-             (bool success, bytes memory data) = tokens[_ticker].stakingContract.call(abi.encodeWithSignature("addStakeholderExternal(address)", _msgSender()));
+        if(tokens[_ticker].nftContract.nftTokenId(_msgSender()) == 0){
+            address _stakeholder = _msgSender();
+             (bool success, bytes memory data) = tokens[_ticker].stakingContract.call(abi.encodeWithSignature("addStakeholderExternal(address)", _stakeholder));
              require(success == true, "add stakeholder call failed");
-
-             id = tokens[_ticker].nftContract.nftTokenId(_msgSender());
         }
+        uint _tokenId = tokens[_ticker].nftContract.nftTokenId(_msgSender());
+        require(traderBalances[_msgSender()][_ticker] >= _amount, 'balance too low');
 
-        (bool success, bytes memory data) =  tokens[_ticker].stakingContract.call(abi.encodeWithSignature("incrementNFTValue(uint256, uint256)", id, _amount));
+        (bool success, bytes memory data) = tokens[_ticker].stakingContract.call(abi.encodeWithSignature("incrementNFTValue(uint256,uint256)", _tokenId, _amount));
         require(success == true, "increment call failed");
 
         traderBalances[_msgSender()][_ticker] = traderBalances[_msgSender()][_ticker].sub(_amount);
     }
 
-    // Function that gets total all orders
-    function getOrders(
-        bytes32 ticker,
-        Side side)
-        external
-        view
-        returns(Order[] memory) {
-        return orderBook[ticker][uint(side)];
-    }
+    // // Function that gets total all orders
+    // function getOrders(
+    //     bytes32 ticker,
+    //     Side side)
+    //     external
+    //     view
+    //     returns(Order[] memory) {
+    //     return orderBook[ticker][uint(side)];
+    // }
 
-    // Function that gets all trading
-    function getTokens()
-        external
-        view
-        returns(StakeToken[] memory) {
-        StakeToken[] memory _tokens = new StakeToken[](stakeTokenList.length);
-        for (uint i = 0; i < stakeTokenList.length; i++) {
-            _tokens[i] = StakeToken(
-              tokens[stakeTokenList[i]].ticker,
-              tokens[stakeTokenList[i]].tokenAddress,
-              tokens[stakeTokenList[i]].nftContract,
-              tokens[stakeTokenList[i]].stakingContract
-            );
-        }
-        return _tokens;
+    // // Function that gets all trading
+     function getTokens()
+         external
+         view
+         returns(StakeToken[] memory) {
+         StakeToken[] memory _tokens = new StakeToken[](stakeTokenList.length);
+         for (uint i = 0; i < stakeTokenList.length; i++) {
+             _tokens[i] = StakeToken(
+               tokens[stakeTokenList[i]].ticker,
+               tokens[stakeTokenList[i]].tokenAddress,
+               tokens[stakeTokenList[i]].nftContract,
+               tokens[stakeTokenList[i]].nftAddress,
+               tokens[stakeTokenList[i]].stakingContract,
+               tokens[stakeTokenList[i]].nfyContract
+             );
+         }
+         return _tokens;
     }
 
     // Function that creates limit order
@@ -241,10 +253,11 @@ contract NFYTradingPlatform is Ownable {
 
     modifier tokenIsNotETH(string memory ticker) {
         bytes32 _ticker = stringToBytes32(ticker);
-        require(_ticker != ETH, 'cannot trade ETH');
-        _;
+       require(_ticker != ETH, 'cannot trade ETH');
+       _;
    }
 
+   //HELPER FUNCTIONS
     // CONVERT STRING TO BYTES32
 
     function stringToBytes32(string memory _source)
