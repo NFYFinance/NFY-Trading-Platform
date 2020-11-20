@@ -54,6 +54,8 @@ contract NFYTradingPlatform is Ownable {
 
     mapping(bytes32 => mapping(uint => Order[])) public orderBook;
 
+    mapping(address => uint) ethBalance;
+
     // Event for a new trade
     event NewTrade(
         uint tradeId,
@@ -78,6 +80,27 @@ contract NFYTradingPlatform is Ownable {
         bytes32 _ticker = stringToBytes32(ticker);
         tokens[_ticker] = StakeToken(_ticker, _tokenAddress, _NFTContract, _NFYaddress, _StakingContract, _nfyContract);
         stakeTokenList.push(_ticker);
+    }
+
+   /* // Function that adds a stake holder
+    function addStakeholder(bytes32 _ticker) private {
+        address _stakeholder = _msgSender();
+        tokens[_ticker].nfyContract.addStakeholderExternal(_stakeholder);
+    }*/
+
+    // Function that deposits eth
+    function depositETH() public payable{
+        ethBalance[_msgSender()] = ethBalance[_msgSender()].add(msg.value);
+    }
+
+    // Function that withdraws eth
+    function withdrawETH(uint _amount) public {
+        require(ethBalance[_msgSender()] >= _amount, "Not enough eth in trading balance");
+
+        uint amountToWithdraw = _amount;
+        ethBalance[_msgSender()] = ethBalance[_msgSender()].sub(_amount);
+
+        _msgSender().transfer(amountToWithdraw);
     }
 
     // Function that allows user to deposit staking NFT
