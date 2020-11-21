@@ -257,12 +257,12 @@ contract NFYTradingPlatform is Ownable {
                         uint b = 0;
                         uint id = orders[i].id;
                         while(b < userOrders){
-                            if(pending[b].id == id){
+                            if(pending[b].id == id && orders[i].filled == orders[i].amount){
                                 for(uint o = b; o < userOrders - 1; o++){
                                     pending[o] = pending[o + 1];
                                     b = userOrders;
                                 }
-                                pending.pop;
+                                pending.pop();
                             }
                             b++;
                         }
@@ -283,7 +283,7 @@ contract NFYTradingPlatform is Ownable {
                                     pending[o] = pending[o + 1];
                                     b = userOrders;
                                 }
-                                pending.pop;
+                                pending.pop();
                             }
                             b++;
                         }
