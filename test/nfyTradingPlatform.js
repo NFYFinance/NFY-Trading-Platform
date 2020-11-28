@@ -316,6 +316,28 @@ contract("NFYTradingPlatform", async (accounts) => {
             await truffleAssert.passes(tradingPlatform.withdrawStake("NFYNFT", depositAmount, {from: user}));
         });
 
+        it("should set user's balance to 0 after they withdraw", async () => {
+            await truffleAssert.passes(tradingPlatform.addToken("NFYNFT", token.address, nfyStakingNFT.address, token.address, nfyStaking.address, token.address, {from: owner}));
+
+            await truffleAssert.passes(tradingPlatform.depositStake("NFYNFT", 1, depositAmount, {from: user}));
+
+            await truffleAssert.passes(tradingPlatform.withdrawStake("NFYNFT", depositAmount, {from: user}));
+
+            assert.strictEqual((BigInt(await tradingPlatform.getTraderBalance(user, "NFYNFT"))).toString(), '0');
+        });
+
+        it("should NOT let a user withdraw after they already withdrew balance", async () => {
+            await truffleAssert.passes(tradingPlatform.addToken("NFYNFT", token.address, nfyStakingNFT.address, token.address, nfyStaking.address, token.address, {from: owner}));
+
+            await truffleAssert.passes(tradingPlatform.depositStake("NFYNFT", 1, depositAmount, {from: user}));
+
+            await truffleAssert.passes(tradingPlatform.withdrawStake("NFYNFT", depositAmount, {from: user}));
+
+            assert.strictEqual((BigInt(await tradingPlatform.getTraderBalance(user, "NFYNFT"))).toString(), '0');
+
+            await truffleAssert.reverts(tradingPlatform.withdrawStake("NFYNFT", depositAmount, {from: user}));
+        });
+
         it("should allow user who unstakes to withdraw and new nft is minted", async () =>  {
             await truffleAssert.passes(tradingPlatform.addToken("NFYNFT", token.address, nfyStakingNFT.address, token.address, nfyStaking.address, token.address, {from: owner}));
 
@@ -331,7 +353,7 @@ contract("NFYTradingPlatform", async (accounts) => {
             console.log(BigInt(await tradingPlatform.getTraderBalance(user, "NFYNFT")));
         });
 
-        it("should allow a user who never had a nft to withdraw and one is minted", async () => {
+        it("should allow a user who never had a nft to withdraw and nft is minted", async () => {
             await truffleAssert.passes(tradingPlatform.addToken("NFYNFT", token.address, nfyStakingNFT.address, token.address, nfyStaking.address, token.address, {from: owner}));
 
             await truffleAssert.passes(tradingPlatform.depositStake("NFYNFT", 1, depositAmount, {from: user}));
@@ -341,11 +363,6 @@ contract("NFYTradingPlatform", async (accounts) => {
             await truffleAssert.passes(tradingPlatform.createMarketOrder("NFYNFT", web3.utils.toWei('5', 'ether'), web3.utils.toWei('0.04', 'ether'), 0, {from: user4}));
 
             await truffleAssert.passes(tradingPlatform.withdrawStake("NFYNFT", web3.utils.toWei('2', 'ether'), {from: user4}));
-
-            assert.strictEqual((BigInt(await nfyStaking.getNFTBalance(4))).toString(), web3.utils.toWei ('2','ether'));
-            assert.strictEqual(await nfyStaking.checkIfNFTInCirculation(1), true);
-            assert.strictEqual(await nfyStaking.checkIfNFTInCirculation(4), true);
-            console.log(BigInt(await tradingPlatform.getTraderBalance(user4, "NFYNFT")));
         });
 
         it("should update properly when a user gets minted a nft", async () => {
@@ -411,7 +428,7 @@ contract("NFYTradingPlatform", async (accounts) => {
             assert.strictEqual(orders.length, 1);
         });
 
-        it("should have add proper information to orders when sell order has been created", async () => {
+        it("should have added proper information to orders when sell order has been created", async () => {
             await truffleAssert.passes(tradingPlatform.addToken("NFYNFT", token.address, nfyStakingNFT.address, token.address, nfyStaking.address, token.address, {from: owner}));
 
             await truffleAssert.passes(tradingPlatform.depositStake("NFYNFT", 1, web3.utils.toWei('6', 'ether'), {from: user}));
@@ -490,6 +507,62 @@ contract("NFYTradingPlatform", async (accounts) => {
 
             await truffleAssert.reverts(tradingPlatform.createLimitOrder("NFYNFT", web3.utils.toWei('101', 'ether'), web3.utils.toWei('0.03', 'ether'), 0, {from: user}));
         });
+
+        it("should properly fill limit order and take proper eth from user", async () => {
+            await truffleAssert.passes(tradingPlatform.addToken("NFYNFT", token.address, nfyStakingNFT.address, token.address, nfyStaking.address, token.address, {from: owner}));
+
+            await truffleAssert.passes(tradingPlatform.depositStake("NFYNFT", 1, depositAmount, {from: user}));
+            await truffleAssert.passes(tradingPlatform.depositEth({value: web3.utils.toWei('2', 'ether'), from: user4}));
+
+            await truffleAssert.passes(tradingPlatform.createLimitOrder("NFYNFT", web3.utils.toWei('2', 'ether'), web3.utils.toWei('0.05', 'ether'), 1, {from: user}));
+            await truffleAssert.passes(tradingPlatform.createMarketOrder("NFYNFT", web3.utils.toWei('5', 'ether'), web3.utils.toWei('0.04', 'ether'), 0, {from: user4}));
+
+            assert.strictEqual((BigInt(await tradingPlatform.getEthBalance(user4))).toString(), web3.utils.toWei('1.78', 'ether'));
+            assert.strictEqual((BigInt(await tradingPlatform.getTraderBalance(user, "NFYNFT"))).toString(), web3.utils.toWei('1', 'ether'));
+
+            let buyOrders = await tradingPlatform.getOrders("NFYNFT", 0);
+
+            console.log(buyOrders.length);
+
+            assert.strictEqual(buyOrders[0].amount, web3.utils.toWei('3', 'ether'));
+            assert.strictEqual(buyOrders[0].price, web3.utils.toWei('0.04', 'ether'));
+        });
+
+        it("should update the eth balance of a seller when their sell order gets filled", async () => {
+            await truffleAssert.passes(tradingPlatform.addToken("NFYNFT", token.address, nfyStakingNFT.address, token.address, nfyStaking.address, token.address, {from: owner}));
+
+            await truffleAssert.passes(tradingPlatform.depositStake("NFYNFT", 1, depositAmount, {from: user}));
+            await truffleAssert.passes(tradingPlatform.depositEth({value: web3.utils.toWei('2', 'ether'), from: user4}));
+
+            assert.strictEqual((BigInt(await tradingPlatform.getEthBalance(user))).toString(), web3.utils.toWei('0', 'ether'));
+
+            await truffleAssert.passes(tradingPlatform.createLimitOrder("NFYNFT", web3.utils.toWei('2', 'ether'), web3.utils.toWei('0.05', 'ether'), 1, {from: user}));
+            await truffleAssert.passes(tradingPlatform.createMarketOrder("NFYNFT", web3.utils.toWei('5', 'ether'), web3.utils.toWei('0.04', 'ether'), 0, {from: user4}));
+
+            await truffleAssert.passes(tradingPlatform.withdrawStake("NFYNFT", web3.utils.toWei('2', 'ether'), {from: user4}));
+
+            assert.strictEqual((BigInt(await tradingPlatform.getEthBalance(user))).toString(), web3.utils.toWei('0.10', 'ether'));
+        });
+
+        it("should properly fill the rest of a users order after the initial amount is filled", async () => {
+            await truffleAssert.passes(tradingPlatform.addToken("NFYNFT", token.address, nfyStakingNFT.address, token.address, nfyStaking.address, token.address, {from: owner}));
+
+            await truffleAssert.passes(tradingPlatform.depositStake("NFYNFT", 1, web3.utils.toWei('8', 'ether'), {from: user}));
+            await truffleAssert.passes(tradingPlatform.depositEth({value: web3.utils.toWei('2', 'ether'), from: user4}));
+
+            await truffleAssert.passes(tradingPlatform.createLimitOrder("NFYNFT", web3.utils.toWei('2', 'ether'), web3.utils.toWei('0.05', 'ether'), 1, {from: user}));
+            await truffleAssert.passes(tradingPlatform.createMarketOrder("NFYNFT", web3.utils.toWei('5', 'ether'), web3.utils.toWei('0.04', 'ether'), 0, {from: user4}));
+
+            assert.strictEqual((BigInt(await tradingPlatform.getTraderBalance(user4, "NFYNFT"))).toString(), web3.utils.toWei('2', 'ether'));
+
+            assert.strictEqual((BigInt(await tradingPlatform.getEthBalance(user4))).toString(), web3.utils.toWei('1.78', 'ether'));
+
+            await truffleAssert.passes(tradingPlatform.createMarketOrder("NFYNFT", web3.utils.toWei('5', 'ether'), web3.utils.toWei('0.04', 'ether'), 1, {from: user}));
+
+            assert.strictEqual((BigInt(await tradingPlatform.getTraderBalance(user4, "NFYNFT"))).toString(), web3.utils.toWei('5', 'ether'));
+            assert.strictEqual((BigInt(await tradingPlatform.getTraderBalance(user, "NFYNFT"))).toString(), web3.utils.toWei('1', 'ether'));
+        });
+
 
     });
 
