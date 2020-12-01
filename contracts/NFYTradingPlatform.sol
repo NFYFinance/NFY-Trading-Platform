@@ -27,6 +27,8 @@ contract NFYTradingPlatform is Ownable {
 
     IERC20 public NFYToken;
     address public rewardPool;
+    address public communityFund;
+    address public devAddress;
 
     enum Side {
         BUY,
@@ -58,17 +60,17 @@ contract NFYTradingPlatform is Ownable {
         uint id;
     }
 
-    mapping(bytes32 => mapping(address => PendingTransactions[])) public pendingETH;
+    mapping(bytes32 => mapping(address => PendingTransactions[])) private pendingETH;
 
-    mapping(bytes32 => mapping(address => PendingTransactions[])) public pendingToken;
+    mapping(bytes32 => mapping(address => PendingTransactions[])) private pendingToken;
 
-    mapping(bytes32 => StakeToken) public tokens;
+    mapping(bytes32 => StakeToken) private tokens;
 
-    mapping(address => mapping(bytes32 => uint)) public traderBalances;
+    mapping(address => mapping(bytes32 => uint)) private traderBalances;
 
-    mapping(bytes32 => mapping(uint => Order[])) public orderBook;
+    mapping(bytes32 => mapping(uint => Order[])) private orderBook;
 
-    mapping(address => uint) public ethBalance;
+    mapping(address => uint) private ethBalance;
 
     // Event for a new trade
     event NewTrade(
@@ -82,15 +84,27 @@ contract NFYTradingPlatform is Ownable {
         uint date
     );
 
-    constructor(address _nfy, address _rewardPool, uint _fee) Ownable() public {
+    constructor(address _nfy, address _rewardPool, uint _fee, address _devFeeAddress, address _communityFundAddress) Ownable() public {
         NFYToken = IERC20(_nfy);
         rewardPool = _rewardPool;
         platformFee = _fee;
+        devAddress = _devFeeAddress;
+        communityFund = _communityFundAddress;
     }
 
     // Function that updates platform fee
     function setFee(uint _fee) external onlyOwner() {
         platformFee = _fee;
+    }
+
+    // Function that updates dev address for portion of fee
+    function setDevFeeAddress(address _devAddress) public onlyOwner() {
+        devAddress = _devAddress;
+    }
+
+    // Function that updates community address for portion of fee
+    function setCommunityFeeAddress(address _communityAddress) public onlyOwner() {
+        communityFund = _communityAddress;
     }
 
     // Function that gets balance of a user
@@ -127,7 +141,7 @@ contract NFYTradingPlatform is Ownable {
     function withdrawStake(string memory ticker, uint _amount) stakeNFTExist(ticker) external {
         bytes32 _ticker = stringToBytes32(ticker);
 
-        if(idCheck(_ticker) == 0){
+        if(tokens[_ticker].nftContract.nftTokenId(_msgSender()) == 0){
             addStakeholder(_ticker);
         }
 
@@ -160,9 +174,9 @@ contract NFYTradingPlatform is Ownable {
         require(success == true, "add stakeholder call failed");
     }
 
-    function idCheck(bytes32 _ticker) private view returns(uint) {
+    /*function idCheck(bytes32 _ticker) private view returns(uint) {
         return tokens[_ticker].nftContract.nftTokenId(_msgSender());
-    }
+    }*/
 
     // Function that gets total all orders
     function getOrders(string memory ticker, Side side) external view returns(Order[] memory) {
@@ -190,7 +204,15 @@ contract NFYTradingPlatform is Ownable {
     // Function that creates limit order
     function createLimitOrder(string memory ticker, uint _amount, uint _price, Side _side) external {
         require(NFYToken.balanceOf(_msgSender()) >= platformFee, "Do not have enough NFY to cover fee");
-        NFYToken.transferFrom(_msgSender(), rewardPool, platformFee);
+
+        uint devFee = platformFee.div(5);
+        uint communityFee = platformFee.div(5);
+
+        uint rewardFee = platformFee.sub(devFee).sub(communityFee);
+
+        NFYToken.transferFrom(_msgSender(), rewardPool, devFee);
+        NFYToken.transferFrom(_msgSender(), communityFund, communityFee);
+        NFYToken.transferFrom(_msgSender(), rewardPool, rewardFee);
 
         limitOrder(ticker, _amount, _price, _side);
     }
@@ -198,7 +220,15 @@ contract NFYTradingPlatform is Ownable {
     // Function that creates market order
     function createMarketOrder(string memory ticker, uint _amount, uint _price, Side _side) external {
         require(NFYToken.balanceOf(_msgSender()) >= platformFee, "Do not have enough NFY to cover fee");
-        NFYToken.transferFrom(_msgSender(), rewardPool, platformFee);
+
+        uint devFee = platformFee.div(5);
+        uint communityFee = platformFee.div(5);
+
+        uint rewardFee = platformFee.sub(devFee).sub(communityFee);
+
+        NFYToken.transferFrom(_msgSender(), devAddress, devFee);
+        NFYToken.transferFrom(_msgSender(), communityFund, communityFee);
+        NFYToken.transferFrom(_msgSender(), rewardPool, rewardFee);
 
         marketOrder(ticker, _amount, _price, _side);
     }

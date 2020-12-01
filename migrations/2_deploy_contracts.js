@@ -27,12 +27,17 @@ module.exports = async function (deployer, networks, accounts) {
 
     // Owner address
     const owner = accounts[1];
+    const initialDev = accounts[1];
 
     const user = accounts[3];
 
     const user2 = accounts[4];
 
     const user3 = accounts[5];
+
+    const devAddress = accounts[6];
+
+    const communityAddress = accounts[7];
 
 
     // Deploy token
@@ -110,7 +115,7 @@ module.exports = async function (deployer, networks, accounts) {
     // TRADING PLATFORM //
 
     // Deploy Trading Platform
-    await deployer.deploy(NFYTradingPlatform, token.address, rewardPool.address, web3.utils.toWei('0.25', 'ether'));
+    await deployer.deploy(NFYTradingPlatform, token.address, rewardPool.address, web3.utils.toWei('0.25', 'ether'), devAddress, communityAddress);
     const tradingPlatform = await NFYTradingPlatform.deployed();
 
     // Transfer ownership to secured secured account
