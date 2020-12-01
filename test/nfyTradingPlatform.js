@@ -113,7 +113,7 @@ contract("NFYTradingPlatform", async (accounts) => {
         // TRADING PLATFORM //
 
         // Deploy Trading Platform
-        tradingPlatform = await NFYTradingPlatform.new();
+        tradingPlatform = await NFYTradingPlatform.new(token.address, rewardPool.address, web3.utils.toWei('0.25', 'ether'));
 
         // Add trading platform as platform address
         await nfyStakingNFT.addPlatformAddress(tradingPlatform.address);
@@ -131,9 +131,37 @@ contract("NFYTradingPlatform", async (accounts) => {
 
     });
 
-    describe.skip("# constructor()", () => {
+    describe("# constructor()", () => {
         it("should set Owner properly", async () => {
             assert.strictEqual(owner, await tradingPlatform.owner());
+        });
+
+        it("should set nfy address properly", async () => {
+            assert.strictEqual(token.address, await tradingPlatform.nfyAddress());
+        });
+
+        it("should set reward pool address properly", async () => {
+            assert.strictEqual(rewardPool.address, await tradingPlatform.rewardPool());
+        });
+
+        it("should set fee properly", async () => {
+            assert.strictEqual(web3.utils.toWei('0.25', 'ether'), (BigInt(await tradingPlatform.platformFee())).toString());
+        });
+    });
+
+    describe("# setFee()", () => {
+        it("should NOT let a non owner change the fee", async () => {
+            await truffleAssert.reverts(tradingPlatform.setFee(web3.utils.toWei('1', 'ether'), {from: user}));
+        });
+
+        it("should let owner change the fee", async () => {
+            await truffleAssert.passes(tradingPlatform.setFee(web3.utils.toWei('1', 'ether'), {from: owner}));
+        });
+
+        it("should properly update fee when changed", async () => {
+            await truffleAssert.passes(tradingPlatform.setFee(web3.utils.toWei('1', 'ether'), {from: owner}));
+
+            assert.strictEqual(web3.utils.toWei('1', 'ether'), (BigInt(await tradingPlatform.platformFee())).toString());
         });
     });
 
@@ -285,7 +313,7 @@ contract("NFYTradingPlatform", async (accounts) => {
         });
     });
 
-    describe("# withdrawStake()", () => {
+    describe.skip("# withdrawStake()", () => {
         it("should revert if user tries to withdraw with no balance", async () => {
             await truffleAssert.passes(tradingPlatform.addToken("NFYNFT", token.address, nfyStakingNFT.address, token.address, nfyStaking.address, token.address, {from: owner}));
 

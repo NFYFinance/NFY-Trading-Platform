@@ -20,7 +20,11 @@ contract NFYTradingPlatform is Ownable {
     bytes32[] public stakeTokenList;
     uint public nextTradeId;
     uint public nextOrderId;
-    //address pending;
+
+    uint public platformFee;
+
+    address public nfyAddress;
+    address public rewardPool;
 
     enum Side {
         BUY,
@@ -76,6 +80,17 @@ contract NFYTradingPlatform is Ownable {
         uint date
     );
 
+    constructor(address _nfy, address _rewardPool, uint _fee) public {
+        nfyAddress = _nfy;
+        rewardPool = _rewardPool;
+        platformFee = _fee;
+    }
+
+    // Function that updates platform fee
+    function setFee(uint _fee) external onlyOwner() {
+        platformFee = _fee;
+    }
+
     // Function that gets balance of a user
     function getTraderBalance(address _user, string memory ticker) external view returns(uint) {
         bytes32 _ticker = stringToBytes32(ticker);
@@ -124,7 +139,7 @@ contract NFYTradingPlatform is Ownable {
     }
 
     function depositEth() external payable{
-        ethBalance[msg.sender] = ethBalance[msg.sender].add(msg.value);
+        ethBalance[_msgSender()] = ethBalance[_msgSender()].add(msg.value);
     }
 
     function withdrawEth(uint _amount) external{
@@ -171,19 +186,29 @@ contract NFYTradingPlatform is Ownable {
     }
 
     // Function that creates limit order
-    function createLimitOrder(string memory ticker, uint _amount, uint _price, Side _side) stakeNFTExist(ticker) public {
+    function createLimitOrder(string memory ticker, uint _amount, uint _price, Side _side) external {
+        limitOrder(ticker, _amount, _price, _side);
+    }
+
+    // Function that creates market order
+    function createMarketOrder(string memory ticker, uint _amount, uint _price, Side _side) external {
+        marketOrder(ticker, _amount, _price, _side);
+    }
+
+    // Limit order Function
+    function limitOrder(string memory ticker, uint _amount, uint _price, Side _side) stakeNFTExist(ticker) internal {
         bytes32 _ticker = stringToBytes32(ticker);
         require(_amount > 0, "Can not purchase no stake");
 
         if(_side == Side.BUY) {
-            require(ethBalance[msg.sender] >= _amount.mul(_price).div(1e18), "Eth too low");
-            PendingTransactions[] storage pending = pendingETH[_ticker][msg.sender];
+            require(ethBalance[_msgSender()] >= _amount.mul(_price).div(1e18), "Eth too low");
+            PendingTransactions[] storage pending = pendingETH[_ticker][_msgSender()];
             pending.push(PendingTransactions(_amount.mul(_price).div(1e18), nextOrderId));
-            ethBalance[msg.sender] = ethBalance[msg.sender].sub(_amount.mul(_price).div(1e18));
+            ethBalance[_msgSender()] = ethBalance[_msgSender()].sub(_amount.mul(_price).div(1e18));
         }
         else {
-            require(traderBalances[msg.sender][_ticker] >= _amount, "Token too low");
-            PendingTransactions[] storage pending = pendingToken[_ticker][msg.sender];
+            require(traderBalances[_msgSender()][_ticker] >= _amount, "Token too low");
+            PendingTransactions[] storage pending = pendingToken[_ticker][_msgSender()];
             pending.push(PendingTransactions(_amount, nextOrderId));
             traderBalances[_msgSender()][_ticker] = traderBalances[_msgSender()][_ticker].sub(_amount);
         }
@@ -218,8 +243,8 @@ contract NFYTradingPlatform is Ownable {
 
     }
 
-    // Function that creates a market order
-    function createMarketOrder(string memory ticker, uint amount, uint price, Side side) stakeNFTExist(ticker) tokenIsNotETH(ticker) external {
+    // Market order Function
+    function marketOrder(string memory ticker, uint amount, uint price, Side side) stakeNFTExist(ticker) tokenIsNotETH(ticker) internal {
         bytes32 _ticker = stringToBytes32(ticker);
         // uint price;
         if(side == Side.SELL) {
@@ -231,7 +256,7 @@ contract NFYTradingPlatform is Ownable {
 
         Order[] storage orders = orderBook[_ticker][uint(side == Side.BUY ? Side.SELL : Side.BUY)];
         if(orders.length == 0){
-            createLimitOrder(ticker,amount,price, side);
+            limitOrder(ticker,amount,price, side);
         }
         else{
             uint remaining = amount;
@@ -255,9 +280,9 @@ contract NFYTradingPlatform is Ownable {
                     );
 
                     if(side == Side.SELL) {
-                        traderBalances[msg.sender][_ticker] = traderBalances[msg.sender][_ticker].sub(matched);
+                        traderBalances[_msgSender()][_ticker] = traderBalances[_msgSender()][_ticker].sub(matched);
                         traderBalances[orders[i].userAddress][_ticker] = traderBalances[orders[i].userAddress][_ticker].add(matched);
-                        ethBalance[msg.sender]  = ethBalance[msg.sender].add(matched.mul(orders[i].price).div(1e18));
+                        ethBalance[_msgSender()]  = ethBalance[_msgSender()].add(matched.mul(orders[i].price).div(1e18));
 
                         PendingTransactions[] storage pending = pendingETH[_ticker][orders[i].userAddress];
                         uint userOrders = pending.length;
@@ -276,10 +301,10 @@ contract NFYTradingPlatform is Ownable {
                     }
 
                     if(side == Side.BUY) {
-                        require(ethBalance[msg.sender] >= matched.mul(orders[i].price).div(1e18), 'eth balance too low');
-                        traderBalances[msg.sender][_ticker] = traderBalances[msg.sender][_ticker].add(matched);
+                        require(ethBalance[_msgSender()] >= matched.mul(orders[i].price).div(1e18), 'eth balance too low');
+                        traderBalances[_msgSender()][_ticker] = traderBalances[_msgSender()][_ticker].add(matched);
                         ethBalance[orders[i].userAddress]  = ethBalance[orders[i].userAddress].add(matched.mul(orders[i].price).div(1e18));
-                        ethBalance[msg.sender]  = ethBalance[msg.sender].sub(matched.mul(orders[i].price).div(1e18));
+                        ethBalance[_msgSender()]  = ethBalance[_msgSender()].sub(matched.mul(orders[i].price).div(1e18));
 
                         PendingTransactions[] storage pending = pendingToken[_ticker][orders[i].userAddress];
                         uint userOrders = pending.length;
@@ -297,7 +322,7 @@ contract NFYTradingPlatform is Ownable {
                     }
 
                     if(orders.length  - i  == 1 && remaining > 0){
-                       createLimitOrder(ticker,remaining,price, side);
+                       limitOrder(ticker,remaining,price, side);
                     }
                     nextTradeId++;
                     i++;
