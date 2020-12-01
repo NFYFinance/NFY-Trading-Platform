@@ -2,6 +2,8 @@ pragma solidity 0.6.10;
 pragma experimental ABIEncoderV2;
 
 import "@openzeppelin/contracts/math/SafeMath.sol";
+import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import './Ownable.sol';
 
 interface NFTContract {
@@ -23,7 +25,7 @@ contract NFYTradingPlatform is Ownable {
 
     uint public platformFee;
 
-    address public nfyAddress;
+    IERC20 public NFYToken;
     address public rewardPool;
 
     enum Side {
@@ -80,8 +82,8 @@ contract NFYTradingPlatform is Ownable {
         uint date
     );
 
-    constructor(address _nfy, address _rewardPool, uint _fee) public {
-        nfyAddress = _nfy;
+    constructor(address _nfy, address _rewardPool, uint _fee) Ownable() public {
+        NFYToken = IERC20(_nfy);
         rewardPool = _rewardPool;
         platformFee = _fee;
     }
@@ -187,11 +189,17 @@ contract NFYTradingPlatform is Ownable {
 
     // Function that creates limit order
     function createLimitOrder(string memory ticker, uint _amount, uint _price, Side _side) external {
+        require(NFYToken.balanceOf(_msgSender()) >= platformFee, "Do not have enough NFY to cover fee");
+        NFYToken.transferFrom(_msgSender(), rewardPool, platformFee);
+
         limitOrder(ticker, _amount, _price, _side);
     }
 
     // Function that creates market order
     function createMarketOrder(string memory ticker, uint _amount, uint _price, Side _side) external {
+        require(NFYToken.balanceOf(_msgSender()) >= platformFee, "Do not have enough NFY to cover fee");
+        NFYToken.transferFrom(_msgSender(), rewardPool, platformFee);
+
         marketOrder(ticker, _amount, _price, _side);
     }
 
