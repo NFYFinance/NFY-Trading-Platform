@@ -9,6 +9,7 @@ const Token = artifacts.require("mocks/Demo");
 const LP = artifacts.require("mocks/DemoLP");
 
 const truffleAssert = require("truffle-assertions");
+const helper = require('./utils/utils.js');
 
 contract("NFYTradingPlatform", async (accounts) => {
 
@@ -87,7 +88,7 @@ contract("NFYTradingPlatform", async (accounts) => {
         // DEMO LP token faucet
         await lp.faucet(user, initialBalance);
         await lp.faucet(user2, initialBalance);
-        await lp.faucet(user3, initialBalance);
+        await lp.faucet(user3, web3.utils.toWei('20','ether'));
 
         // Approve LP staking address
         await lp.approve(lpStaking.address, allowance, {from: user});
@@ -97,7 +98,7 @@ contract("NFYTradingPlatform", async (accounts) => {
         // DEMO NFY faucet
         await token.faucet(user, initialBalance);
         await token.faucet(user2, initialBalance);
-        await token.faucet(user3, initialBalance);
+        await token.faucet(user3, web3.utils.toWei('20','ether'));
         await token.faucet(user4, initialBalance);
 
         // Approve NFY staking address
@@ -113,7 +114,7 @@ contract("NFYTradingPlatform", async (accounts) => {
         // Stake DEMO NFY Tokens
         await nfyStaking.stakeNFY(web3.utils.toWei('20', 'ether'), {from: user});
         await nfyStaking.stakeNFY(web3.utils.toWei('20', 'ether'), {from: user2});
-        await nfyStaking.stakeNFY(web3.utils.toWei('1000', 'ether'), {from: user3});
+        await nfyStaking.stakeNFY(web3.utils.toWei('20', 'ether'), {from: user3});
 
         // TRADING PLATFORM //
 
@@ -142,7 +143,7 @@ contract("NFYTradingPlatform", async (accounts) => {
 
     });
 
-    describe.skip("# constructor()", () => {
+    describe("# constructor()", () => {
         it("should set Owner properly", async () => {
             assert.strictEqual(owner, await tradingPlatform.owner());
         });
@@ -158,9 +159,18 @@ contract("NFYTradingPlatform", async (accounts) => {
         it("should set fee properly", async () => {
             assert.strictEqual(web3.utils.toWei('0.25', 'ether'), (BigInt(await tradingPlatform.platformFee())).toString());
         });
+
+        it("should set dev fund address properly", async () => {
+            assert.strictEqual(devAddress, await tradingPlatform.devAddress());
+
+        });
+
+        it("should set community fund address properly", async () => {
+            assert.strictEqual(communityAddress, await tradingPlatform.communityFund());
+        });
     });
 
-    describe.skip("# setFee()", () => {
+    describe("# setFee()", () => {
         it("should NOT let a non owner change the fee", async () => {
             await truffleAssert.reverts(tradingPlatform.setFee(web3.utils.toWei('1', 'ether'), {from: user}));
         });
@@ -176,7 +186,7 @@ contract("NFYTradingPlatform", async (accounts) => {
         });
     });
 
-    describe.skip("# getTraderBalance()", () => {
+    describe("# getTraderBalance()", () => {
        it("should start balance of user at 0", async () => {
             await truffleAssert.passes(tradingPlatform.addToken("NFYNFT", token.address, nfyStakingNFT.address, token.address, nfyStaking.address, token.address, {from: owner}));
 
@@ -217,7 +227,7 @@ contract("NFYTradingPlatform", async (accounts) => {
        });
     });
 
-    describe.skip("# getEthBalance()", () => {
+    describe("# getEthBalance()", () => {
        it("should start eth balance of user at 0", async () => {
             assert.strictEqual(BigInt(await tradingPlatform.getEthBalance(user)).toString(), "0");
        });
@@ -240,7 +250,7 @@ contract("NFYTradingPlatform", async (accounts) => {
        });
     });
 
-    describe.skip("# addToken()", () => {
+    describe("# addToken()", () => {
         it("should allow owner to add token", async () => {
             await truffleAssert.passes(tradingPlatform.addToken("NFYNFT", token.address, nfyStakingNFT.address, token.address, nfyStaking.address, token.address, {from: owner}));
             const tokens = await tradingPlatform.getTokens();
@@ -265,13 +275,13 @@ contract("NFYTradingPlatform", async (accounts) => {
         });
     });
 
-    describe.skip("# depositEth()", () => {
+    describe("# depositEth()", () => {
         it("should allow a user to deposit eth", async () => {
             await truffleAssert.passes(tradingPlatform.depositEth({from: user, value: web3.utils.toWei('3', 'ether')}));
         });
     });
 
-    describe.skip("# withdrawEth()", () => {
+    describe("# withdrawEth()", () => {
         it("should NOT allow a user to withdraw 0 eth", async () => {
             await truffleAssert.reverts(tradingPlatform.withdrawEth(web3.utils.toWei('0', 'ether'), {from: user}));
         });
@@ -289,7 +299,7 @@ contract("NFYTradingPlatform", async (accounts) => {
         });
     });
 
-    describe.skip("# depositStake()", () => {
+    describe("# depositStake()", () => {
         it("should let user deposit stake", async () => {
             await truffleAssert.passes(tradingPlatform.addToken("NFYNFT", token.address, nfyStakingNFT.address, token.address, nfyStaking.address, token.address, {from: owner}));
             await truffleAssert.passes(tradingPlatform.depositStake("NFYNFT", 1, depositAmount, {from: user}));
@@ -322,9 +332,36 @@ contract("NFYTradingPlatform", async (accounts) => {
 
             await truffleAssert.reverts(tradingPlatform.depositStake("NFYNFT", 1, web3.utils.toWei('21', 'ether'), {from: user}));
         });
+
+        it("should send proper rewards when user deposits their stake", async () => {
+            await truffleAssert.passes(tradingPlatform.addToken("NFYNFT", token.address, nfyStakingNFT.address, token.address, nfyStaking.address, token.address, {from: owner}));
+
+            await nfyStaking.claimAllRewards({from: user});
+            const balanceBefore = BigInt(await token.balanceOf(user));
+
+            console.log(balanceBefore);
+
+            const rewardPerBlock = await nfyStaking.getRewardPerBlock();
+
+            let i = 0;
+            while(i < 20){
+            await helper.advanceBlock();
+            i++;
+            }
+
+            await truffleAssert.passes(tradingPlatform.depositStake("NFYNFT", 1, web3.utils.toWei('10', 'ether'), {from: user}));
+
+            const balanceAfter = BigInt(await token.balanceOf(user));
+
+            console.log(balanceAfter - balanceBefore);
+
+            const expectedRewards = BigInt(rewardPerBlock) * BigInt(21) / BigInt(3) - BigInt(10);
+
+            assert.strictEqual((balanceBefore + expectedRewards).toString(), (balanceAfter).toString());
+        });
     });
 
-    describe.skip("# withdrawStake()", () => {
+    describe("# withdrawStake()", () => {
         it("should revert if user tries to withdraw with no balance", async () => {
             await truffleAssert.passes(tradingPlatform.addToken("NFYNFT", token.address, nfyStakingNFT.address, token.address, nfyStaking.address, token.address, {from: owner}));
 
@@ -420,6 +457,35 @@ contract("NFYTradingPlatform", async (accounts) => {
             assert.strictEqual(await nfyStaking.checkIfNFTInCirculation(4), true);
             console.log(BigInt(await tradingPlatform.getTraderBalance(user4, "NFYNFT")));
         });
+
+        it("should send proper rewards when user withdraws their stake", async () => {
+            await truffleAssert.passes(tradingPlatform.addToken("NFYNFT", token.address, nfyStakingNFT.address, token.address, nfyStaking.address, token.address, {from: owner}));
+
+            await truffleAssert.passes(tradingPlatform.depositStake("NFYNFT", 1, web3.utils.toWei('10', 'ether'), {from: user}));
+
+            await nfyStaking.claimAllRewards({from: user});
+            const balanceBefore = BigInt(await token.balanceOf(user));
+
+            console.log(balanceBefore);
+
+            const rewardPerBlock = await nfyStaking.getRewardPerBlock();
+
+            let i = 0;
+            while(i < 20){
+            await helper.advanceBlock();
+            i++;
+            }
+
+            await truffleAssert.passes(tradingPlatform.withdrawStake("NFYNFT", web3.utils.toWei('10', 'ether'), {from: user}));
+
+            const balanceAfter = BigInt(await token.balanceOf(user));
+
+            console.log(balanceAfter - balanceBefore);
+
+            const expectedRewards = BigInt(rewardPerBlock) * BigInt(21) / BigInt(6) - BigInt(5);
+
+            assert.strictEqual((balanceBefore + expectedRewards).toString(), (balanceAfter).toString());
+        });
     });
 
     describe("# createLimitOrder()", () => {
@@ -442,20 +508,53 @@ contract("NFYTradingPlatform", async (accounts) => {
         });
 
         it("should update reward pool with fee when taken out", async () => {
-
-        });
-
-        it('should let a user create a sell order if conditions are met', async () => {
             await truffleAssert.passes(tradingPlatform.addToken("NFYNFT", token.address, nfyStakingNFT.address, token.address, nfyStaking.address, token.address, {from: owner}));
 
-            //await truffleAssert.passes(tradingPlatform.depositEth({from: user, value: web3.utils.toWei('3', 'ether')}));
             await truffleAssert.passes(tradingPlatform.depositStake("NFYNFT", 1, web3.utils.toWei('6', 'ether'), {from: user}));
 
-            //console.log(BigInt(await tradingPlatform.getEthBalance(user)).toString());
+            let rewardBefore = BigInt(await token.balanceOf(rewardPool.address));
+
+            await truffleAssert.passes(tradingPlatform.createLimitOrder("NFYNFT", web3.utils.toWei('5', 'ether'), web3.utils.toWei('0.003', 'ether'), 1, {from: user}));
+
+            console.log(((BigInt(await token.balanceOf(rewardPool.address))) - rewardBefore).toString());
+            assert.strictEqual(((BigInt(await token.balanceOf(rewardPool.address))) - rewardBefore).toString(), web3.utils.toWei('0.225', 'ether'));
+        });
+
+        it("should update dev fund with portion of fee", async () => {
+            await truffleAssert.passes(tradingPlatform.addToken("NFYNFT", token.address, nfyStakingNFT.address, token.address, nfyStaking.address, token.address, {from: owner}));
+
+            await truffleAssert.passes(tradingPlatform.depositStake("NFYNFT", 1, web3.utils.toWei('6', 'ether'), {from: user}));
+
+            await truffleAssert.passes(tradingPlatform.createLimitOrder("NFYNFT", web3.utils.toWei('5', 'ether'), web3.utils.toWei('0.003', 'ether'), 1, {from: user}));
+
+            assert.strictEqual((BigInt(await token.balanceOf(devAddress))).toString(), web3.utils.toWei('0.0125', 'ether'));
+        });
+
+        it("should update community fund with portion of fee", async () => {
+            await truffleAssert.passes(tradingPlatform.addToken("NFYNFT", token.address, nfyStakingNFT.address, token.address, nfyStaking.address, token.address, {from: owner}));
+
+            await truffleAssert.passes(tradingPlatform.depositStake("NFYNFT", 1, web3.utils.toWei('6', 'ether'), {from: user}));
+
+            await truffleAssert.passes(tradingPlatform.createLimitOrder("NFYNFT", web3.utils.toWei('5', 'ether'), web3.utils.toWei('0.003', 'ether'), 1, {from: user}));
+
+            assert.strictEqual((BigInt(await token.balanceOf(communityAddress))).toString(), web3.utils.toWei('0.0125', 'ether'));
+        });
+
+        it("should let a user create a sell order if conditions are met", async () => {
+            await truffleAssert.passes(tradingPlatform.addToken("NFYNFT", token.address, nfyStakingNFT.address, token.address, nfyStaking.address, token.address, {from: owner}));
+
+            await truffleAssert.passes(tradingPlatform.depositStake("NFYNFT", 1, web3.utils.toWei('6', 'ether'), {from: user}));
 
             await truffleAssert.passes(tradingPlatform.createLimitOrder("NFYNFT", web3.utils.toWei('5', 'ether'), web3.utils.toWei('0.003', 'ether'), 1, {from: user}));
             await truffleAssert.passes(tradingPlatform.createLimitOrder("NFYNFT", web3.utils.toWei('1', 'ether'), web3.utils.toWei('0.003', 'ether'), 1, {from: user}));
+        });
 
+        it("should NOT let a user create an order with ticker ETH", async () => {
+            await truffleAssert.passes(tradingPlatform.addToken("NFYNFT", token.address, nfyStakingNFT.address, token.address, nfyStaking.address, token.address, {from: owner}));
+
+            await truffleAssert.passes(tradingPlatform.depositStake("NFYNFT", 1, web3.utils.toWei('6', 'ether'), {from: user}));
+
+            await truffleAssert.reverts(tradingPlatform.createLimitOrder("ETH", web3.utils.toWei('5', 'ether'), web3.utils.toWei('0.003', 'ether'), 1, {from: user}));
         });
 
         it("should NOT let a user create a sell order and does not have enough", async () => {
@@ -615,7 +714,7 @@ contract("NFYTradingPlatform", async (accounts) => {
         });
     });
 
-    describe.skip("# createMarketOrder()", () => {
+    describe("# createMarketOrder()", () => {
 
     });
 

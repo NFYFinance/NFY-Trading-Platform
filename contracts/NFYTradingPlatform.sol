@@ -19,9 +19,10 @@ contract NFYTradingPlatform is Ownable {
     using SafeMath for uint;
 
     bytes32 constant ETH = 'ETH';
-    bytes32[] public stakeTokenList;
-    uint public nextTradeId;
-    uint public nextOrderId;
+
+    bytes32[] private stakeTokenList;
+    uint private nextTradeId;
+    uint private nextOrderId;
 
     uint public platformFee;
 
@@ -98,12 +99,12 @@ contract NFYTradingPlatform is Ownable {
     }
 
     // Function that updates dev address for portion of fee
-    function setDevFeeAddress(address _devAddress) public onlyOwner() {
+    function setDevFeeAddress(address _devAddress) external onlyOwner() {
         devAddress = _devAddress;
     }
 
     // Function that updates community address for portion of fee
-    function setCommunityFeeAddress(address _communityAddress) public onlyOwner() {
+    function setCommunityFeeAddress(address _communityAddress) external onlyOwner() {
         communityFund = _communityAddress;
     }
 
@@ -174,10 +175,6 @@ contract NFYTradingPlatform is Ownable {
         require(success == true, "add stakeholder call failed");
     }
 
-    /*function idCheck(bytes32 _ticker) private view returns(uint) {
-        return tokens[_ticker].nftContract.nftTokenId(_msgSender());
-    }*/
-
     // Function that gets total all orders
     function getOrders(string memory ticker, Side side) external view returns(Order[] memory) {
         bytes32 _ticker = stringToBytes32(ticker);
@@ -205,12 +202,12 @@ contract NFYTradingPlatform is Ownable {
     function createLimitOrder(string memory ticker, uint _amount, uint _price, Side _side) external {
         require(NFYToken.balanceOf(_msgSender()) >= platformFee, "Do not have enough NFY to cover fee");
 
-        uint devFee = platformFee.div(5);
-        uint communityFee = platformFee.div(5);
+        uint devFee = platformFee.div(100).mul(5);
+        uint communityFee = platformFee.div(100).mul(5);
 
         uint rewardFee = platformFee.sub(devFee).sub(communityFee);
 
-        NFYToken.transferFrom(_msgSender(), rewardPool, devFee);
+        NFYToken.transferFrom(_msgSender(), devAddress, devFee);
         NFYToken.transferFrom(_msgSender(), communityFund, communityFee);
         NFYToken.transferFrom(_msgSender(), rewardPool, rewardFee);
 
@@ -221,8 +218,8 @@ contract NFYTradingPlatform is Ownable {
     function createMarketOrder(string memory ticker, uint _amount, uint _price, Side _side) external {
         require(NFYToken.balanceOf(_msgSender()) >= platformFee, "Do not have enough NFY to cover fee");
 
-        uint devFee = platformFee.div(5);
-        uint communityFee = platformFee.div(5);
+        uint devFee = platformFee.div(100).mul(5);
+        uint communityFee = platformFee.div(100).mul(5);
 
         uint rewardFee = platformFee.sub(devFee).sub(communityFee);
 
@@ -282,7 +279,7 @@ contract NFYTradingPlatform is Ownable {
     }
 
     // Market order Function
-    function marketOrder(string memory ticker, uint amount, uint price, Side side) stakeNFTExist(ticker) tokenIsNotETH(ticker) internal {
+    function marketOrder(string memory ticker, uint amount, uint price, Side side) stakeNFTExist(ticker) internal {
         bytes32 _ticker = stringToBytes32(ticker);
         // uint price;
         if(side == Side.SELL) {
@@ -449,12 +446,6 @@ contract NFYTradingPlatform is Ownable {
         require(tokens[_ticker].tokenAddress != address(0), "staking NFT does not exist");
         _;
     }
-
-    modifier tokenIsNotETH(string memory ticker) {
-        bytes32 _ticker = stringToBytes32(ticker);
-       require(_ticker != ETH, 'cannot trade ETH');
-       _;
-   }
 
    //HELPER FUNCTION
 
