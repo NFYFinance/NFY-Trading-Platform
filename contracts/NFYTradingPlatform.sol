@@ -24,12 +24,12 @@ contract NFYTradingPlatform is Ownable {
     uint private nextTradeId;
     uint private nextOrderId;
 
-    uint public platformFee;
+    uint private platformFee;
 
-    IERC20 public NFYToken;
-    address public rewardPool;
-    address public communityFund;
-    address public devAddress;
+    IERC20 private NFYToken;
+    address private rewardPool;
+    address private communityFund;
+    address private devAddress;
 
     enum Side {
         BUY,
@@ -94,19 +94,19 @@ contract NFYTradingPlatform is Ownable {
     }
 
     // Function that updates platform fee
-    function setFee(uint _fee) external onlyOwner() {
+    /*function setFee(uint _fee) external onlyOwner() {
         platformFee = _fee;
-    }
+    }*/
 
     // Function that updates dev address for portion of fee
-    function setDevFeeAddress(address _devAddress) external onlyOwner() {
+    /*function setDevFeeAddress(address _devAddress) external onlyOwner() {
         devAddress = _devAddress;
-    }
+    }*/
 
     // Function that updates community address for portion of fee
-    function setCommunityFeeAddress(address _communityAddress) external onlyOwner() {
+    /*function setCommunityFeeAddress(address _communityAddress) external onlyOwner() {
         communityFund = _communityAddress;
-    }
+    }*/
 
     // Function that gets balance of a user
     function getTraderBalance(address _user, string memory ticker) external view returns(uint) {
@@ -214,28 +214,79 @@ contract NFYTradingPlatform is Ownable {
         limitOrder(ticker, _amount, _price, _side);
     }
 
-    // Function that creates market order
-    function createMarketOrder(string memory ticker, uint _amount, uint _price, Side _side) external {
-        require(NFYToken.balanceOf(_msgSender()) >= platformFee, "Do not have enough NFY to cover fee");
-
-        uint devFee = platformFee.div(100).mul(5);
-        uint communityFee = platformFee.div(100).mul(5);
-
-        uint rewardFee = platformFee.sub(devFee).sub(communityFee);
-
-        NFYToken.transferFrom(_msgSender(), devAddress, devFee);
-        NFYToken.transferFrom(_msgSender(), communityFund, communityFee);
-        NFYToken.transferFrom(_msgSender(), rewardPool, rewardFee);
-
-        marketOrder(ticker, _amount, _price, _side);
-    }
 
     // Limit order Function
     function limitOrder(string memory ticker, uint _amount, uint _price, Side _side) stakeNFTExist(ticker) internal {
         bytes32 _ticker = stringToBytes32(ticker);
-        require(_amount > 0, "Can not purchase no stake");
+        require(_amount > 0, "Amount can not be 0");
 
+        Order[] storage orders = orderBook[_ticker][uint(_side == Side.BUY ? Side.SELL : Side.BUY)];
+        if(orders.length == 0){
+            createOrder(_ticker, _amount, _price, _side);
+        }
+        else{
+            if(_side == Side.BUY){
+                uint remaining = _amount;
+                uint i;
+                uint orderLength = orders.length;
+                while(i < orders.length && remaining > 0) {
+
+                    if(_price >= orders[i].price){
+                       remaining = matchOrder(_ticker,orders, remaining, i, _side);
+                        nextTradeId++;
+
+                        if(orders.length  - i  == 1 && remaining > 0){
+                            createOrder(_ticker, remaining, _price, _side);
+                        }
+                        i++;
+                    }
+                    else{
+                        i = orderLength;
+                        if(remaining > 0){
+                            createOrder(_ticker, remaining, _price, _side);
+                        }
+                    }
+                }
+            }
+
+            if(_side == Side.SELL){
+                uint remaining = _amount;
+                uint i;
+                uint orderLength = orders.length;
+                while(i < orders.length && remaining > 0) {
+                    if(_price <= orders[i].price){
+                        remaining = matchOrder(_ticker,orders, remaining, i, _side);
+                        nextTradeId++;
+
+                        if(orders.length  - i  == 1 && remaining > 0){
+                            createOrder(_ticker, remaining, _price, _side);
+                        }
+                        i++;
+                    }
+                    else{
+                        i = orderLength;
+                        if(remaining > 0){
+                            createOrder(_ticker, remaining, _price, _side);
+                        }
+                    }
+                }
+            }
+
+           uint i = 0;
+
+            while(i < orders.length && orders[i].filled == orders[i].amount) {
+                for(uint j = i; j < orders.length - 1; j++ ) {
+                    orders[j] = orders[j + 1];
+                }
+            orders.pop();
+            i++;
+            }
+        }
+    }
+
+    function createOrder(bytes32 _ticker, uint _amount, uint _price, Side _side) internal {
         if(_side == Side.BUY) {
+            require(ethBalance[_msgSender()] > 0, "Can not purchase no stake");
             require(ethBalance[_msgSender()] >= _amount.mul(_price).div(1e18), "Eth too low");
             PendingTransactions[] storage pending = pendingETH[_ticker][_msgSender()];
             pending.push(PendingTransactions(_amount.mul(_price).div(1e18), nextOrderId));
@@ -275,114 +326,77 @@ contract NFYTradingPlatform is Ownable {
             i--;
         }
         nextOrderId++;
-
     }
 
-    // Market order Function
-    function marketOrder(string memory ticker, uint amount, uint price, Side side) stakeNFTExist(ticker) internal {
-        bytes32 _ticker = stringToBytes32(ticker);
-        // uint price;
+    function matchOrder(bytes32 _ticker, Order[] storage orders, uint remaining, uint i, Side side) internal returns(uint left){
+        uint available = orders[i].amount.sub(orders[i].filled);
+        uint matched = (remaining > available) ? available : remaining;
+        remaining = remaining.sub(matched);
+        orders[i].filled = orders[i].filled.add(matched);
+
+        emit NewTrade(
+            nextTradeId,
+            orders[i].id,
+            _ticker,
+            orders[i].userAddress,
+            _msgSender(),
+            matched,
+            orders[i].price,
+            now
+        );
+
         if(side == Side.SELL) {
-            require(
-                traderBalances[_msgSender()][_ticker] >= amount,
-                'token balance too low'
-            );
-        }
+            traderBalances[_msgSender()][_ticker] = traderBalances[_msgSender()][_ticker].sub(matched);
+            traderBalances[orders[i].userAddress][_ticker] = traderBalances[orders[i].userAddress][_ticker].add(matched);
+            ethBalance[_msgSender()]  = ethBalance[_msgSender()].add(matched.mul(orders[i].price).div(1e18));
 
-        Order[] storage orders = orderBook[_ticker][uint(side == Side.BUY ? Side.SELL : Side.BUY)];
-        if(orders.length == 0){
-            limitOrder(ticker,amount,price, side);
-        }
-        else{
-            uint remaining = amount;
-            uint i;
-            while(i < orders.length && remaining > 0) {
-
-                    uint available = orders[i].amount.sub(orders[i].filled);
-                    uint matched = (remaining > available) ? available : remaining;
-                    remaining = remaining.sub(matched);
-                    orders[i].filled = orders[i].filled.add(matched);
-
-                    emit NewTrade(
-                        nextTradeId,
-                        orders[i].id,
-                        _ticker,
-                        orders[i].userAddress,
-                        _msgSender(),
-                        matched,
-                        orders[i].price,
-                        now
-                    );
-
-                    if(side == Side.SELL) {
-                        traderBalances[_msgSender()][_ticker] = traderBalances[_msgSender()][_ticker].sub(matched);
-                        traderBalances[orders[i].userAddress][_ticker] = traderBalances[orders[i].userAddress][_ticker].add(matched);
-                        ethBalance[_msgSender()]  = ethBalance[_msgSender()].add(matched.mul(orders[i].price).div(1e18));
-
-                        PendingTransactions[] storage pending = pendingETH[_ticker][orders[i].userAddress];
-                        uint userOrders = pending.length;
-                        uint b = 0;
-                        uint id = orders[i].id;
-                        while(b < userOrders){
-                            if(pending[b].id == id && orders[i].filled == orders[i].amount){
-                                for(uint o = b; o < userOrders - 1; o++){
-                                    pending[o] = pending[o + 1];
-                                    b = userOrders;
-                                }
-                                pending.pop();
-                            }
-                            b++;
-                        }
+            PendingTransactions[] storage pending = pendingETH[_ticker][orders[i].userAddress];
+            uint userOrders = pending.length;
+            uint b = 0;
+            uint id = orders[i].id;
+            while(b < userOrders){
+                if(pending[b].id == id && orders[i].filled == orders[i].amount){
+                    for(uint o = b; o < userOrders - 1; o++){
+                        pending[o] = pending[o + 1];
+                        b = userOrders;
                     }
-
-                    if(side == Side.BUY) {
-                        require(ethBalance[_msgSender()] >= matched.mul(orders[i].price).div(1e18), 'eth balance too low');
-                        traderBalances[_msgSender()][_ticker] = traderBalances[_msgSender()][_ticker].add(matched);
-                        ethBalance[orders[i].userAddress]  = ethBalance[orders[i].userAddress].add(matched.mul(orders[i].price).div(1e18));
-                        ethBalance[_msgSender()]  = ethBalance[_msgSender()].sub(matched.mul(orders[i].price).div(1e18));
-
-                        PendingTransactions[] storage pending = pendingToken[_ticker][orders[i].userAddress];
-                        uint userOrders = pending.length;
-                        uint b = 0;
-                        while(b < userOrders){
-                            if(pending[b].id == orders[i].id && orders[i].filled == orders[i].amount){
-                                for(uint o = b; o < userOrders - 1; o++){
-                                    pending[o] = pending[o + 1];
-                                    b = userOrders;
-                                }
-                                pending.pop();
-                            }
-                            b++;
-                        }
-                    }
-
-                    if(orders.length  - i  == 1 && remaining > 0){
-                       limitOrder(ticker,remaining,price, side);
-                    }
-                    nextTradeId++;
-                    i++;
-
-            }
-
-            i = 0;
-
-            while(i < orders.length && orders[i].filled == orders[i].amount) {
-                for(uint j = i; j < orders.length - 1; j++ ) {
-                    orders[j] = orders[j + 1];
+                    pending.pop();
                 }
-                orders.pop();
-                i++;
+                b++;
             }
         }
+
+        if(side == Side.BUY) {
+            require(ethBalance[_msgSender()] >= matched.mul(orders[i].price).div(1e18), 'eth balance too low');
+            traderBalances[_msgSender()][_ticker] = traderBalances[_msgSender()][_ticker].add(matched);
+            ethBalance[orders[i].userAddress]  = ethBalance[orders[i].userAddress].add(matched.mul(orders[i].price).div(1e18));
+            ethBalance[_msgSender()]  = ethBalance[_msgSender()].sub(matched.mul(orders[i].price).div(1e18));
+
+            PendingTransactions[] storage pending = pendingToken[_ticker][orders[i].userAddress];
+            uint userOrders = pending.length;
+            uint b = 0;
+            while(b < userOrders){
+                if(pending[b].id == orders[i].id && orders[i].filled == orders[i].amount){
+                    for(uint o = b; o < userOrders - 1; o++){
+                        pending[o] = pending[o + 1];
+                        b = userOrders;
+                    }
+                    pending.pop();
+                }
+                b++;
+            }
+        }
+        left = remaining;
+        return left;
     }
 
-    /*function cancelOrder(string memory ticker, Side _side) external stakeNFTExist(ticker) {
+    function cancelOrder(string memory ticker, Side _side) external stakeNFTExist(ticker) {
         bytes32 _ticker = stringToBytes32(ticker);
 
         Order[] storage orders = orderBook[_ticker][uint(_side)];
 
         if(_side == Side.BUY) {
-            PendingTransactions[] storage pending = pendingETH[_ticker][msg.sender];
+            PendingTransactions[] storage pending = pendingETH[_ticker][_msgSender()];
             int userOrders = int(pending.length - 1);
             require(userOrders >= 0, 'users has no pending order');
             uint userOrder = uint(userOrders);
@@ -401,9 +415,9 @@ contract NFYTradingPlatform is Ownable {
                     }
 
                     i = orderLength;
-                    uint amount = pendingETH[_ticker][msg.sender][userOrder].pendingAmount;
-                    pendingETH[_ticker][msg.sender][userOrder].pendingAmount = pendingETH[_ticker][msg.sender][userOrder].pendingAmount.sub(amount);
-                    ethBalance[msg.sender]  = ethBalance[msg.sender].add(amount);
+                    uint amount = pendingETH[_ticker][_msgSender()][userOrder].pendingAmount;
+                    pendingETH[_ticker][_msgSender()][userOrder].pendingAmount = pendingETH[_ticker][_msgSender()][userOrder].pendingAmount.sub(amount);
+                    ethBalance[_msgSender()]  = ethBalance[_msgSender()].add(amount);
                     orders.pop();
                     pending.pop();
                 }
@@ -411,7 +425,7 @@ contract NFYTradingPlatform is Ownable {
             }
         }
         else{
-            PendingTransactions[] storage pending = pendingToken[_ticker][msg.sender];
+            PendingTransactions[] storage pending = pendingToken[_ticker][_msgSender()];
             int userOrders = int(pending.length - 1);
             require(userOrders >= 0, 'users has no pending order');
             uint userOrder = uint(userOrders);
@@ -430,16 +444,16 @@ contract NFYTradingPlatform is Ownable {
                     }
 
                     i = orderLength;
-                    uint amount = pendingToken[_ticker][msg.sender][userOrder].pendingAmount;
-                    pendingToken[_ticker][msg.sender][userOrder].pendingAmount = pendingToken[_ticker][msg.sender][userOrder].pendingAmount.sub(amount);
-                    traderBalances[msg.sender][_ticker] = traderBalances[msg.sender][_ticker].add(amount);
+                    uint amount = pendingToken[_ticker][_msgSender()][userOrder].pendingAmount;
+                    pendingToken[_ticker][_msgSender()][userOrder].pendingAmount = pendingToken[_ticker][_msgSender()][userOrder].pendingAmount.sub(amount);
+                    traderBalances[_msgSender()][_ticker] = traderBalances[_msgSender()][_ticker].add(amount);
                     orders.pop();
                     pending.pop();
                 }
                 i++;
             }
         }
-    }*/
+    }
 
     modifier stakeNFTExist(string memory ticker) {
         bytes32 _ticker = stringToBytes32(ticker);
