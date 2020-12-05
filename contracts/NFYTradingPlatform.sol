@@ -205,11 +205,11 @@ contract NFYTradingPlatform is Ownable {
     function createLimitOrder(string memory ticker, uint _amount, uint _price, Side _side) external payable {
         require(msg.value >= platformFee, "Do not have enough ETH to cover fee");
         if(block.number >= blockNumber){
-            uint before = address(this).balance;
+            uint before = NFYToken.balanceOf(address(this));
             /*function that swaps eth to nfy will be here
                 swapETH(fees,address(this));
             */
-            uint afterr = address(this).balance;
+            uint afterr = NFYToken.balanceOf(address(this));
             
             uint fee = afterr.sub(before);
             
