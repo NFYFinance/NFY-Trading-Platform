@@ -5,7 +5,7 @@ pragma experimental ABIEncoderV2;
 
 import 'https://github.com/OpenZeppelin/openzeppelin-contracts/blob/master/contracts/math/SafeMath.sol';
 import './Ownable.sol';
-
+import 'https://github.com/OpenZeppelin/openzeppelin-contracts/blob/master/contracts/token/ERC20/IERC20.sol';
 
 interface NFTContract {
     function ownerOf(uint256 tokenId) external view returns (address owner);
@@ -22,12 +22,21 @@ interface NFYContract {
 
 contract NFYTradingPlatform is Ownable {
     using SafeMath for uint;
- 
+
     bytes32 constant ETH = 'ETH';
-    bytes32[] public stakeTokenList;
-    uint public nextTradeId;
-    uint public nextOrderId;
-    uint marketPrice;
+
+    bytes32[] private stakeTokenList;
+    uint private nextTradeId;
+    uint private nextOrderId;
+
+    uint public platformFee;
+    uint public fees;
+    uint private blockNumber;
+
+    IERC20 public NFYToken;
+    address public rewardPool;
+    address public communityFund;
+    address public devAddress;
 
     enum Side {
         BUY,
@@ -45,7 +54,7 @@ contract NFYTradingPlatform is Ownable {
 
     struct Order {
         uint id;
-        address  userAddress;
+        address userAddress;
         Side side;
         bytes32 ticker;
         uint amount;
@@ -53,23 +62,23 @@ contract NFYTradingPlatform is Ownable {
         uint price;
         uint date;
     }
-    
+
     struct PendingTransactions{
         uint pendingAmount;
         uint id;
     }
-    
+
     mapping(bytes32 => mapping(address => PendingTransactions[])) public pendingETH;
-    
+
     mapping(bytes32 => mapping(address => PendingTransactions[])) public pendingToken;
-   
-    mapping(bytes32 => StakeToken) public tokens;
 
-    mapping(address => mapping(bytes32 => uint)) public traderBalances;
+    mapping(bytes32 => StakeToken) private tokens;
 
-    mapping(bytes32 => mapping(uint => Order[])) public orderBook;
-    
-    mapping(address => uint) public ethBalance;
+    mapping(address => mapping(bytes32 => uint)) private traderBalances;
+
+    mapping(bytes32 => mapping(uint => Order[])) private orderBook;
+
+    mapping(address => uint) private ethBalance;
 
     // Event for a new trade
     event NewTrade(
@@ -83,13 +92,48 @@ contract NFYTradingPlatform is Ownable {
         uint date
     );
 
+    constructor(address _nfy, address _rewardPool, uint _fee, address _devFeeAddress, address _communityFundAddress) Ownable() public {
+        NFYToken = IERC20(_nfy);
+        rewardPool = _rewardPool;
+        platformFee = _fee;
+        devAddress = _devFeeAddress;
+        communityFund = _communityFundAddress;
+        blockNumber = block.number.add(6500);
+    }
+
+    // Function that updates platform fee
+    function setFee(uint _fee) external onlyOwner() {
+        platformFee = _fee;
+    }
+
+    // Function that updates dev address for portion of fee
+    function setDevFeeAddress(address _devAddress) external onlyOwner() {
+        devAddress = _devAddress;
+    }
+
+    // Function that updates community address for portion of fee
+    function setCommunityFeeAddress(address _communityAddress) external onlyOwner() {
+        communityFund = _communityAddress;
+    }
+
+    // Function that gets balance of a user
+    function getTraderBalance(address _user, string memory ticker) external view returns(uint) {
+        bytes32 _ticker = stringToBytes32(ticker);
+
+        return traderBalances[_user][_ticker];
+    }
+
+    // Function that gets eth balance of a user
+    function getEthBalance(address _user) external view returns(uint) {
+        return(ethBalance[_user]);
+    }
+
     // Function that adds staking NFT
     function addToken(string memory ticker,address _tokenAddress, NFTContract _NFTContract, address _NFYaddress, address _StakingContract, NFYContract _nfyContract) onlyOwner() external {
-        bytes32 _ticker = stringToBytes32(ticker);       
+        bytes32 _ticker = stringToBytes32(ticker);
         tokens[_ticker] = StakeToken(_ticker, _tokenAddress, _NFTContract, _NFYaddress, _StakingContract, _nfyContract);
         stakeTokenList.push(_ticker);
     }
-
     // Function that allows user to deposit staking NFT
     function depositStake(string memory ticker, uint _tokenId, uint _amount) stakeNFTExist(ticker) external {
         bytes32 _ticker = stringToBytes32(ticker);
@@ -115,17 +159,16 @@ contract NFYTradingPlatform is Ownable {
 
         traderBalances[_msgSender()][_ticker] = traderBalances[_msgSender()][_ticker].sub(_amount);
     }
-    
-    function depositETH () public payable{
+
+    function depositEth() external payable{
         ethBalance[msg.sender] = ethBalance[msg.sender].add(msg.value);
     }
-    
     function withdrawETH(uint amount) public{
         require(ethBalance[msg.sender] >= amount);
         ethBalance[msg.sender] = ethBalance[msg.sender].sub(amount);
         msg.sender.transfer(amount);
     }
-    
+
     function addStakeholder(bytes32 _ticker) private {
         address _stakeholder = _msgSender();
         tokens[_ticker].nfyContract.addStakeholderExternal(_stakeholder);
@@ -135,35 +178,53 @@ contract NFYTradingPlatform is Ownable {
         return tokens[_ticker].nftContract.nftTokenId(_msgSender());
     }
 
-    // // Function that gets total all orders
-    // function getOrders(
-    //     bytes32 ticker,
-    //     Side side)
-    //     external
-    //     view
-    //     returns(Order[] memory) {
-    //     return orderBook[ticker][uint(side)];
-    // }
+    // Function that gets total all orders
+    function getOrders(string memory ticker, Side side) external view returns(Order[] memory) {
+        bytes32 _ticker = stringToBytes32(ticker);
 
-    // // Function that gets all trading
-    // function getTokens() 
-    //     external
-    //     view
-    //     returns(StakeToken[] memory) {
-    //     StakeToken[] memory _tokens = new StakeToken[](stakeTokenList.length);
-    //     for (uint i = 0; i < stakeTokenList.length; i++) {
-    //         _tokens[i] = StakeToken(
-    //           tokens[stakeTokenList[i]].ticker,
-    //           tokens[stakeTokenList[i]].tokenAddress,
-    //           tokens[stakeTokenList[i]].nftContract,
-    //           tokens[stakeTokenList[i]].stakingContract
-    //         );
-    //     }
-    //     return _tokens;
-    // }
+        return orderBook[_ticker][uint(side)];
+     }
 
+    // Function that gets all trading
+    function getTokens() external view returns(StakeToken[] memory) {
+         StakeToken[] memory _tokens = new StakeToken[](stakeTokenList.length);
+         for (uint i = 0; i < stakeTokenList.length; i++) {
+             _tokens[i] = StakeToken(
+               tokens[stakeTokenList[i]].ticker,
+               tokens[stakeTokenList[i]].tokenAddress,
+               tokens[stakeTokenList[i]].nftContract,
+               tokens[stakeTokenList[i]].nftAddress,
+               tokens[stakeTokenList[i]].stakingContract,
+               tokens[stakeTokenList[i]].nfyContract
+             );
+         }
+         return _tokens;
+    }
+//"NFY","0xd9145CCE52D386f254917e481eB44e9943F39138","0xd8b934580fcE35a11B58C6D73aDeE468a2833fa8","0xd8b934580fcE35a11B58C6D73aDeE468a2833fa8","0xD4Fc541236927E2EAf8F27606bD7309C1Fc2cbee","0xD4Fc541236927E2EAf8F27606bD7309C1Fc2cbee"
     // Function that creates limit order
-    function createLimitOrder(string memory ticker, uint _amount, uint _price, Side _side) stakeNFTExist(ticker) public {
+    function createLimitOrder(string memory ticker, uint _amount, uint _price, Side _side) external payable {
+        require(msg.value >= platformFee, "Do not have enough ETH to cover fee");
+        if(block.number >= blockNumber){
+            //function that swaps eth to nfy will be here
+            
+            uint devFee = platformFee.div(100).mul(10);
+            uint communityFee = platformFee.div(100).mul(5);
+            uint rewardFee = platformFee.sub(devFee).sub(communityFee);
+    
+            NFYToken.transfer(devAddress, devFee);
+            NFYToken.transfer(communityFund, communityFee);
+            NFYToken.transfer(rewardPool, rewardFee);
+            fees = 0;
+            blockNumber = block.number.add(6500);
+        }
+        
+        fees = fees.add(msg.value);
+
+        limitOrder(ticker, _amount, _price, _side);
+    }
+
+
+    function limitOrder(string memory ticker, uint _amount, uint _price, Side _side) stakeNFTExist(ticker) public {
         bytes32 _ticker = stringToBytes32(ticker); 
         require(_amount > 0, "Amount can not be 0");
         
@@ -233,10 +294,10 @@ contract NFYTradingPlatform is Ownable {
     function createOrder(bytes32 _ticker, uint _amount, uint _price, Side _side) private {
          if(_side == Side.BUY) {
             require(ethBalance[msg.sender] > 0, "Can not purchase no stake");
-            require(ethBalance[msg.sender] >= _amount.mul(_price), "Eth too low");
+            require(ethBalance[msg.sender] >= _amount.mul(_price).div(1e18), "Eth too low");
             PendingTransactions[] storage pending = pendingETH[_ticker][msg.sender];
-            pending.push(PendingTransactions(_amount.mul(_price), nextOrderId));
-            ethBalance[msg.sender] = ethBalance[msg.sender].sub(_amount.mul(_price));
+            pending.push(PendingTransactions(_amount.mul(_price).div(1e18), nextOrderId));
+            ethBalance[msg.sender] = ethBalance[msg.sender].sub(_amount.mul(_price).div(1e18));
         }
         else {
             require(traderBalances[msg.sender][_ticker] >= _amount, "Token too low");
@@ -294,7 +355,7 @@ contract NFYTradingPlatform is Ownable {
         if(side == Side.SELL) {
             traderBalances[msg.sender][_ticker] = traderBalances[msg.sender][_ticker].sub(matched);
             traderBalances[orders[i].userAddress][_ticker] = traderBalances[orders[i].userAddress][_ticker].add(matched);
-            ethBalance[msg.sender]  = ethBalance[msg.sender].add(matched.mul(orders[i].price));
+            ethBalance[msg.sender]  = ethBalance[msg.sender].add(matched.mul(orders[i].price).div(1e18));
             
             PendingTransactions[] storage pending = pendingETH[_ticker][orders[i].userAddress];
             uint userOrders = pending.length;
@@ -313,10 +374,10 @@ contract NFYTradingPlatform is Ownable {
         }
 
         if(side == Side.BUY) {
-            require(ethBalance[msg.sender] >= matched.mul(orders[i].price), 'eth balance too low');
+            require(ethBalance[msg.sender] >= matched.mul(orders[i].price).div(1e18), 'eth balance too low');
             traderBalances[msg.sender][_ticker] = traderBalances[msg.sender][_ticker].add(matched);
-            ethBalance[orders[i].userAddress]  = ethBalance[orders[i].userAddress].add(matched.mul(orders[i].price));
-            ethBalance[msg.sender]  = ethBalance[msg.sender].sub(matched.mul(orders[i].price));
+            ethBalance[orders[i].userAddress]  = ethBalance[orders[i].userAddress].add(matched.mul(orders[i].price).div(1e18));
+            ethBalance[msg.sender]  = ethBalance[msg.sender].sub(matched.mul(orders[i].price).div(1e18));
             
             PendingTransactions[] storage pending = pendingToken[_ticker][orders[i].userAddress];
             uint userOrders = pending.length;
@@ -343,86 +404,66 @@ contract NFYTradingPlatform is Ownable {
         
         if(_side == Side.BUY) {
             PendingTransactions[] storage pending = pendingETH[_ticker][msg.sender];
-            int userOrders = int(pending.length - 1);
-            require(userOrders >= 0, 'users has no pending order');
-            uint userOrder = uint(userOrders);
-            uint orderId = pending[userOrder].id;
-            uint orderLength = orders.length;
-            
-            uint i = 0;
-            
-            while(i < orders.length){
-            
-             if(orders[i].id == orderId){
-                    
-                    for(uint c = i; c < orders.length - 1; c++){
-                        orders[c] = orders[c + 1]; 
-                    }
-                    
-                    uint amount = pendingETH[_ticker][msg.sender][userOrder].pendingAmount.sub(orders[i].filled);
-                    ethBalance[msg.sender]  = ethBalance[msg.sender].add(amount);
-                    orders.pop();
-                    pending.pop();
-                    i = orderLength;
-                }
-                i++;
-            }
+            uint amount = _cancelOrder(pending, orders, _ticker);
+            ethBalance[msg.sender]  = ethBalance[msg.sender].add(amount);
         }
         else{
             PendingTransactions[] storage pending = pendingToken[_ticker][msg.sender];
-            int userOrders = int(pending.length - 1);
-            require(userOrders >= 0, 'users has no pending order');
-            uint userOrder = uint(userOrders);
-            uint orderId = pending[userOrder].id;
-            uint orderLength = orders.length;
-            
-            uint i = 0;
-            
-            while(i < orders.length){
-            
-               if(orders[i].id == orderId){
-                    
-                    for(uint c = i; c < orders.length - 1; c++){
-                        orders[c] = orders[c + 1]; 
-                    }
-                    
-                    uint amount = pendingToken[_ticker][msg.sender][userOrder].pendingAmount.sub(orders[i].filled);
-                    traderBalances[msg.sender][_ticker] = traderBalances[msg.sender][_ticker].add(amount);
-                    orders.pop();
-                    pending.pop();
-                    i = orderLength;
-                }
-                i++;
-            }
+            uint amount = _cancelOrder(pending, orders, _ticker);
+            traderBalances[msg.sender][_ticker] = traderBalances[msg.sender][_ticker].add(amount);
         }
     }
     
+    function _cancelOrder(PendingTransactions[] storage pending, Order[] storage orders, bytes32 _ticker) internal returns(uint left){
+        int userOrders = int(pending.length - 1);
+        require(userOrders >= 0, 'users has no pending order');
+        uint userOrder = uint(userOrders);
+        uint orderId = pending[userOrder].id;
+        uint orderLength = orders.length;
+        
+        uint i = 0;
+        uint amount;
+        
+        while(i < orders.length){
+        
+           if(orders[i].id == orderId){
+                
+                for(uint c = i; c < orders.length - 1; c++){
+                    orders[c] = orders[c + 1]; 
+                }
+                
+                amount = pendingToken[_ticker][msg.sender][userOrder].pendingAmount.sub(orders[i].filled);
+                traderBalances[msg.sender][_ticker] = traderBalances[msg.sender][_ticker].add(amount);
+                orders.pop();
+                pending.pop();
+                i = orderLength;
+            }
+            i++;
+        }
+        left = amount;
+        return left;
+    }
+
     modifier stakeNFTExist(string memory ticker) {
-        bytes32 _ticker = stringToBytes32(ticker); 
+        bytes32 _ticker = stringToBytes32(ticker);
         require(tokens[_ticker].tokenAddress != address(0), "staking NFT does not exist");
         _;
     }
-    
-    modifier tokenIsNotETH(string memory ticker) {
-        bytes32 _ticker = stringToBytes32(ticker);
-       require(_ticker != ETH, 'cannot trade ETH');
-       _;
-   }
-   
+
    //HELPER FUNCTION
-    
+
     // CONVERT STRING TO BYTES32
-    
-    function stringToBytes32(string memory _source) 
-    public pure 
+
+    function stringToBytes32(string memory _source)
+    public pure
     returns (bytes32 result) {
         bytes memory tempEmptyStringTest = bytes(_source);
         string memory tempSource = _source;
-        
+
         if (tempEmptyStringTest.length == 0) {
             return 0x0;
         }
-    
+
         assembly {
             result := mload(add(tempSource, 32))
         }
