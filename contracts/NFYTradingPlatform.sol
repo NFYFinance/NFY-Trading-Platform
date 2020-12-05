@@ -410,17 +410,17 @@ contract NFYTradingPlatform is Ownable {
         
         if(_side == Side.BUY) {
             PendingTransactions[] storage pending = pendingETH[_ticker][msg.sender];
-            uint amount = _cancelOrder(pending, orders, _ticker);
+            uint amount = _cancelOrder(pending, orders);
             ethBalance[msg.sender]  = ethBalance[msg.sender].add(amount);
         }
         else{
             PendingTransactions[] storage pending = pendingToken[_ticker][msg.sender];
-            uint amount = _cancelOrder(pending, orders, _ticker);
+            uint amount = _cancelOrder(pending, orders);
             traderBalances[msg.sender][_ticker] = traderBalances[msg.sender][_ticker].add(amount);
         }
     }
     
-    function _cancelOrder(PendingTransactions[] storage pending, Order[] storage orders, bytes32 _ticker) internal returns(uint left){
+    function _cancelOrder(PendingTransactions[] storage pending, Order[] storage orders) internal returns(uint left){
         int userOrders = int(pending.length - 1);
         require(userOrders >= 0, 'users has no pending order');
         uint userOrder = uint(userOrders);
@@ -438,8 +438,7 @@ contract NFYTradingPlatform is Ownable {
                     orders[c] = orders[c + 1]; 
                 }
                 
-                amount = pendingToken[_ticker][msg.sender][userOrder].pendingAmount.sub(orders[i].filled);
-                traderBalances[msg.sender][_ticker] = traderBalances[msg.sender][_ticker].add(amount);
+                amount = pending[userOrder].pendingAmount.sub(orders[i].filled);
                 orders.pop();
                 pending.pop();
                 i = orderLength;
@@ -448,7 +447,7 @@ contract NFYTradingPlatform is Ownable {
         }
         left = amount;
         return left;
-    }
+    }"NFY","0xd9145CCE52D386f254917e481eB44e9943F39138","0xd8b934580fcE35a11B58C6D73aDeE468a2833fa8","0xd8b934580fcE35a11B58C6D73aDeE468a2833fa8","0xD4Fc541236927E2EAf8F27606bD7309C1Fc2cbee","0xD4Fc541236927E2EAf8F27606bD7309C1Fc2cbee"
 
     modifier stakeNFTExist(string memory ticker) {
         bytes32 _ticker = stringToBytes32(ticker);
