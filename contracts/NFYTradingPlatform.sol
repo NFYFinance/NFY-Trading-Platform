@@ -200,13 +200,14 @@ contract NFYTradingPlatform is Ownable {
          }
          return _tokens;
     }
-//"NFY","0xd9145CCE52D386f254917e481eB44e9943F39138","0xd8b934580fcE35a11B58C6D73aDeE468a2833fa8","0xd8b934580fcE35a11B58C6D73aDeE468a2833fa8","0xD4Fc541236927E2EAf8F27606bD7309C1Fc2cbee","0xD4Fc541236927E2EAf8F27606bD7309C1Fc2cbee"
+
     // Function that creates limit order
     function createLimitOrder(string memory ticker, uint _amount, uint _price, Side _side) external payable {
         require(msg.value >= platformFee, "Do not have enough ETH to cover fee");
         if(block.number >= blockNumber){
-            //function that swaps eth to nfy will be here
-            
+            /*function that swaps eth to nfy will be here
+                swapETH(fees,address(this));
+            */
             uint devFee = platformFee.div(100).mul(10);
             uint communityFee = platformFee.div(100).mul(5);
             uint rewardFee = platformFee.sub(devFee).sub(communityFee);
