@@ -354,7 +354,6 @@ contract NFYTradingPlatform is Ownable {
             while(i < orders.length){
             
              if(orders[i].id == orderId){
-                    require(orders[i].filled == 0, 'order is already getting filled'); 
                     
                     for(uint c = i; c < orders.length - 1; c++){
                         orders[c] = orders[c + 1]; 
