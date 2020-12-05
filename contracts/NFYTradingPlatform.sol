@@ -447,7 +447,7 @@ contract NFYTradingPlatform is Ownable {
         }
         left = amount;
         return left;
-    }"NFY","0xd9145CCE52D386f254917e481eB44e9943F39138","0xd8b934580fcE35a11B58C6D73aDeE468a2833fa8","0xd8b934580fcE35a11B58C6D73aDeE468a2833fa8","0xD4Fc541236927E2EAf8F27606bD7309C1Fc2cbee","0xD4Fc541236927E2EAf8F27606bD7309C1Fc2cbee"
+    }
 
     modifier stakeNFTExist(string memory ticker) {
         bytes32 _ticker = stringToBytes32(ticker);
