@@ -205,12 +205,17 @@ contract NFYTradingPlatform is Ownable {
     function createLimitOrder(string memory ticker, uint _amount, uint _price, Side _side) external payable {
         require(msg.value >= platformFee, "Do not have enough ETH to cover fee");
         if(block.number >= blockNumber){
+            uint before = address(this).balance;
             /*function that swaps eth to nfy will be here
                 swapETH(fees,address(this));
             */
-            uint devFee = platformFee.div(100).mul(10);
-            uint communityFee = platformFee.div(100).mul(5);
-            uint rewardFee = platformFee.sub(devFee).sub(communityFee);
+            uint afterr = address(this).balance;
+            
+            uint fee = afterr.sub(before);
+            
+            uint devFee = fee.div(100).mul(10);
+            uint communityFee = fee.div(100).mul(5);
+            uint rewardFee = fee.sub(devFee).sub(communityFee);
     
             NFYToken.transfer(devAddress, devFee);
             NFYToken.transfer(communityFund, communityFee);
