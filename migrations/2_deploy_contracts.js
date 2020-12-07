@@ -115,7 +115,7 @@ module.exports = async function (deployer, networks, accounts) {
     // TRADING PLATFORM //
 
     // Deploy Trading Platform
-    await deployer.deploy(NFYTradingPlatform, token.address, rewardPool.address, web3.utils.toWei('0.25', 'ether'), devAddress, communityAddress);
+    await deployer.deploy(NFYTradingPlatform, token.address, rewardPool.address, web3.utils.toWei('0.25', 'ether'), devAddress, communityAddress, devAddress);
     const tradingPlatform = await NFYTradingPlatform.deployed();
 
     // Transfer ownership to secured secured account

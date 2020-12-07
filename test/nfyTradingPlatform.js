@@ -119,7 +119,7 @@ contract("NFYTradingPlatform", async (accounts) => {
         // TRADING PLATFORM //
 
         // Deploy Trading Platform
-        tradingPlatform = await NFYTradingPlatform.new(token.address, rewardPool.address, web3.utils.toWei('0.25', 'ether'), devAddress, communityAddress);
+        tradingPlatform = await NFYTradingPlatform.new(token.address, rewardPool.address, web3.utils.toWei('0.25', 'ether'), devAddress, communityAddress, devAddress);
 
         await token.approve(tradingPlatform.address, allowance, {from: user});
         await token.approve(tradingPlatform.address, allowance, {from: user2});

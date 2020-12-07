@@ -79,7 +79,7 @@ contract NFYTradingPlatform is Ownable {
         uint date
     );
 
-    constructor(address _nfy, address _rewardPool, uint _fee, address _devFeeAddress, address _communityFundAddress) Ownable() public {
+    constructor(address _nfy, address _rewardPool, uint _fee, address _devFeeAddress, address _communityFundAddress, address _dev) Ownable(_dev) public {
         NFYToken = IERC20(_nfy);
         rewardPool = _rewardPool;
         platformFee = _fee;
@@ -93,7 +93,7 @@ contract NFYTradingPlatform is Ownable {
     }
 
     // Function that updates dev address for portion of fee
-    function setDevFeeAddress(address _devAddress) external onlyOwner() {
+    function setDevFeeAddress(address _devAddress) external onlyDev() {
         devAddress = _devAddress;
     }
 
