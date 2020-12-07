@@ -523,7 +523,7 @@ contract("NFYTradingPlatform", async (accounts) => {
             await truffleAssert.passes(tradingPlatform.createLimitOrder("NFYNFT", web3.utils.toWei('5', 'ether'), web3.utils.toWei('0.003', 'ether'), 1, {from: user}));
 
             console.log(((BigInt(await token.balanceOf(rewardPool.address))) - rewardBefore).toString());
-            assert.strictEqual(((BigInt(await token.balanceOf(rewardPool.address))) - rewardBefore).toString(), web3.utils.toWei('0.225', 'ether'));
+            assert.strictEqual(((BigInt(await token.balanceOf(rewardPool.address))) - rewardBefore).toString(), web3.utils.toWei('0.2125', 'ether'));
         });
 
         it("should update dev fund with portion of fee", async () => {
@@ -533,7 +533,7 @@ contract("NFYTradingPlatform", async (accounts) => {
 
             await truffleAssert.passes(tradingPlatform.createLimitOrder("NFYNFT", web3.utils.toWei('5', 'ether'), web3.utils.toWei('0.003', 'ether'), 1, {from: user}));
 
-            assert.strictEqual((BigInt(await token.balanceOf(devAddress))).toString(), web3.utils.toWei('0.0125', 'ether'));
+            assert.strictEqual((BigInt(await token.balanceOf(devAddress))).toString(), web3.utils.toWei('0.025', 'ether'));
         });
 
         it("should update community fund with portion of fee", async () => {

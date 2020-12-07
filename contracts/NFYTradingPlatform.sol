@@ -194,7 +194,7 @@ contract NFYTradingPlatform is Ownable {
     function createLimitOrder(string memory ticker, uint _amount, uint _price, Side _side) external {
         require(NFYToken.balanceOf(_msgSender()) >= platformFee, "Do not have enough NFY to cover fee");
 
-        uint devFee = platformFee.div(100).mul(5);
+        uint devFee = platformFee.div(100).mul(10);
         uint communityFee = platformFee.div(100).mul(5);
 
         uint rewardFee = platformFee.sub(devFee).sub(communityFee);
