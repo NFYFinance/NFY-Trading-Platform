@@ -412,10 +412,6 @@ contract NFYTradingPlatform is Ownable {
 
            if(orders[i].id == orderId){
 
-                for(uint c = i; c < orders.length - 1; c++){
-                    orders[c] = orders[c + 1];
-                }
-
                 if(_side == Side.BUY){
                     amount = pending[userOrder].pendingAmount.sub(orders[i].filled.mul(orders[i].price).div(1e18));
                 }
@@ -424,11 +420,16 @@ contract NFYTradingPlatform is Ownable {
                     amount = pending[userOrder].pendingAmount.sub(orders[i].filled);
                 }
 
+                for(uint c = i; c < orders.length - 1; c++){
+                    orders[c] = orders[c + 1];
+                }
+
                 orders.pop();
                 pending.pop();
                 i = orderLength;
-            }
-            i++;
+           }
+
+           i++;
         }
         left = amount;
         return left;
