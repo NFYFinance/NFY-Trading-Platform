@@ -149,10 +149,12 @@ contract NFYTradingPlatform is Ownable {
         traderBalances[_msgSender()][_ticker] = traderBalances[_msgSender()][_ticker].sub(_amount);
     }
 
+    // Function that deposits eth
     function depositEth() external payable{
         ethBalance[_msgSender()] = ethBalance[_msgSender()].add(msg.value);
     }
 
+    // Function that withdraws eth
     function withdrawEth(uint _amount) external{
         require(_amount > 0, "cannot withdraw 0 eth");
         require(ethBalance[_msgSender()] >= _amount, "Not enough eth in trading balance");
@@ -163,6 +165,7 @@ contract NFYTradingPlatform is Ownable {
         _msgSender().transfer(amountToWithdraw);
     }
 
+    // Function that adds stakeholder
     function addStakeholder(bytes32 _ticker) private {
         address _stakeholder = _msgSender();
         (bool success, bytes memory data) = tokens[_ticker].stakingAddress.call(abi.encodeWithSignature("addStakeholderExternal(address)", _stakeholder));
@@ -203,17 +206,17 @@ contract NFYTradingPlatform is Ownable {
         NFYToken.transferFrom(_msgSender(), communityFund, communityFee);
         NFYToken.transferFrom(_msgSender(), rewardPool, rewardFee);
 
-        limitOrder(ticker, _amount, _price, _side);
+        _limitOrder(ticker, _amount, _price, _side);
     }
 
     // Limit order Function
-    function limitOrder(string memory ticker, uint _amount, uint _price, Side _side) stakeNFTExist(ticker) internal {
+    function _limitOrder(string memory ticker, uint _amount, uint _price, Side _side) stakeNFTExist(ticker) internal {
         bytes32 _ticker = stringToBytes32(ticker);
         require(_amount > 0, "Amount can not be 0");
 
         Order[] storage orders = orderBook[_ticker][uint(_side == Side.BUY ? Side.SELL : Side.BUY)];
         if(orders.length == 0){
-            createOrder(_ticker, _amount, _price, _side);
+            _createOrder(_ticker, _amount, _price, _side);
         }
         else{
             if(_side == Side.BUY){
@@ -223,18 +226,18 @@ contract NFYTradingPlatform is Ownable {
                 while(i < orders.length && remaining > 0) {
 
                     if(_price >= orders[i].price){
-                        remaining = matchOrder(_ticker,orders, remaining, i, _side);
+                        remaining = _matchOrder(_ticker,orders, remaining, i, _side);
                         nextTradeId++;
 
                         if(orders.length  - i  == 1 && remaining > 0){
-                            createOrder(_ticker, remaining, _price, _side);
+                            _createOrder(_ticker, remaining, _price, _side);
                         }
                         i++;
                     }
                     else{
                         i = orderLength;
                         if(remaining > 0){
-                            createOrder(_ticker, remaining, _price, _side);
+                            _createOrder(_ticker, remaining, _price, _side);
                         }
                     }
                 }
@@ -246,18 +249,18 @@ contract NFYTradingPlatform is Ownable {
                 uint orderLength = orders.length;
                 while(i < orders.length && remaining > 0) {
                     if(_price <= orders[i].price){
-                        remaining = matchOrder(_ticker,orders, remaining, i, _side);
+                        remaining = _matchOrder(_ticker,orders, remaining, i, _side);
                         nextTradeId++;
 
                         if(orders.length  - i  == 1 && remaining > 0){
-                            createOrder(_ticker, remaining, _price, _side);
+                            _createOrder(_ticker, remaining, _price, _side);
                         }
                         i++;
                     }
                     else{
                         i = orderLength;
                         if(remaining > 0){
-                            createOrder(_ticker, remaining, _price, _side);
+                            _createOrder(_ticker, remaining, _price, _side);
                         }
                     }
                 }
@@ -275,7 +278,7 @@ contract NFYTradingPlatform is Ownable {
         }
     }
 
-    function createOrder(bytes32 _ticker, uint _amount, uint _price, Side _side) internal {
+    function _createOrder(bytes32 _ticker, uint _amount, uint _price, Side _side) internal {
         if(_side == Side.BUY) {
             require(ethBalance[_msgSender()] > 0, "Can not purchase no stake");
             require(ethBalance[_msgSender()] >= _amount.mul(_price).div(1e18), "Eth too low");
@@ -319,7 +322,7 @@ contract NFYTradingPlatform is Ownable {
         nextOrderId++;
     }
 
-    function matchOrder(bytes32 _ticker, Order[] storage orders, uint remaining, uint i, Side side) internal returns(uint left){
+    function _matchOrder(bytes32 _ticker, Order[] storage orders, uint remaining, uint i, Side side) internal returns(uint left){
         uint available = orders[i].amount.sub(orders[i].filled);
         uint matched = (remaining > available) ? available : remaining;
         remaining = remaining.sub(matched);
