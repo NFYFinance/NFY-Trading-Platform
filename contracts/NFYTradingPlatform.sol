@@ -227,12 +227,12 @@ contract NFYTradingPlatform is Ownable {
 
                     if(_price >= orders[i].price){
                         remaining = _matchOrder(_ticker,orders, remaining, i, _side);
-                        nextTradeId++;
+                        nextTradeId = nextTradeId.add(1);
 
-                        if(orders.length  - i  == 1 && remaining > 0){
+                        if(orders.length.sub(i) == 1 && remaining > 0){
                             _createOrder(_ticker, remaining, _price, _side);
                         }
-                        i++;
+                        i = i.add(1);
                     }
                     else{
                         i = orderLength;
@@ -250,12 +250,12 @@ contract NFYTradingPlatform is Ownable {
                 while(i < orders.length && remaining > 0) {
                     if(_price <= orders[i].price){
                         remaining = _matchOrder(_ticker,orders, remaining, i, _side);
-                        nextTradeId++;
+                        nextTradeId = nextTradeId.add(1);
 
-                        if(orders.length  - i  == 1 && remaining > 0){
+                        if(orders.length.sub(i) == 1 && remaining > 0){
                             _createOrder(_ticker, remaining, _price, _side);
                         }
-                        i++;
+                        i = i.add(1);
                     }
                     else{
                         i = orderLength;
@@ -269,11 +269,11 @@ contract NFYTradingPlatform is Ownable {
            uint i = 0;
 
             while(i < orders.length && orders[i].filled == orders[i].amount) {
-                for(uint j = i; j < orders.length - 1; j++ ) {
-                    orders[j] = orders[j + 1];
+                for(uint j = i; j < orders.length.sub(1); j = j.add(1) ) {
+                    orders[j] = orders[j.add(1)];
                 }
             orders.pop();
-            i++;
+            i = i.add(1);
             }
         }
     }
@@ -306,20 +306,20 @@ contract NFYTradingPlatform is Ownable {
             now
         ));
 
-        uint i = orders.length > 0 ? orders.length - 1 : 0;
+        uint i = orders.length > 0 ? orders.length.sub(1) : 0;
         while(i > 0) {
-            if(_side == Side.BUY && orders[i - 1].price > orders[i].price) {
+            if(_side == Side.BUY && orders[i.sub(1)].price > orders[i].price) {
                 break;
             }
-            if(_side == Side.SELL && orders[i - 1].price < orders[i].price) {
+            if(_side == Side.SELL && orders[i.sub(1)].price < orders[i].price) {
                 break;
             }
-            Order memory order = orders[i - 1];
-            orders[i - 1] = orders[i];
+            Order memory order = orders[i.sub(1)];
+            orders[i.sub(1)] = orders[i];
             orders[i] = order;
-            i--;
+            i = i.sub(1);
         }
-        nextOrderId++;
+        nextOrderId = nextOrderId.add(1);
     }
 
     function _matchOrder(bytes32 _ticker, Order[] storage orders, uint remaining, uint i, Side side) internal returns(uint left){
@@ -350,13 +350,13 @@ contract NFYTradingPlatform is Ownable {
             uint id = orders[i].id;
             while(b < userOrders){
                 if(pending[b].id == id && orders[i].filled == orders[i].amount){
-                    for(uint o = b; o < userOrders - 1; o++){
-                        pending[o] = pending[o + 1];
+                    for(uint o = b; o < userOrders.sub(1); o = o.add(1)){
+                        pending[o] = pending[o.add(1)];
                         b = userOrders;
                     }
                     pending.pop();
                 }
-                b++;
+                b = b.add(1);
             }
         }
 
@@ -371,13 +371,13 @@ contract NFYTradingPlatform is Ownable {
             uint b = 0;
             while(b < userOrders){
                 if(pending[b].id == orders[i].id && orders[i].filled == orders[i].amount){
-                    for(uint o = b; o < userOrders - 1; o++){
-                        pending[o] = pending[o + 1];
+                    for(uint o = b; o < userOrders.sub(1); o = o.add(1)){
+                        pending[o] = pending[o.add(1)];
                         b = userOrders;
                     }
                     pending.pop();
                 }
-                b++;
+                b = b.add(1);
             }
         }
         left = remaining;
@@ -423,8 +423,8 @@ contract NFYTradingPlatform is Ownable {
                     amount = pending[userOrder].pendingAmount.sub(orders[i].filled);
                 }
 
-                for(uint c = i; c < orders.length - 1; c++){
-                    orders[c] = orders[c + 1];
+                for(uint c = i; c < orders.length.sub(1); c = c.add(1)){
+                    orders[c] = orders[c.add(1)];
                 }
 
                 orders.pop();
@@ -432,7 +432,7 @@ contract NFYTradingPlatform is Ownable {
                 i = orderLength;
            }
 
-           i++;
+           i = i.add(1);
         }
         left = amount;
         return left;
