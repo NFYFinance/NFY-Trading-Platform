@@ -162,16 +162,12 @@ contract("NFYTradingPlatform", async (accounts) => {
 
         it("should set dev fund address properly", async () => {
             assert.strictEqual(devAddress, await tradingPlatform.devAddress());
-
         });
 
         it("should set community fund address properly", async () => {
             assert.strictEqual(communityAddress, await tradingPlatform.communityFund());
         });
 
-        it("should set community fund address properly", async () => {
-            assert.strictEqual(devAddress, await tradingPlatform.dev());
-        });
     });
 
     describe("# setFee()", () => {
@@ -202,6 +198,11 @@ contract("NFYTradingPlatform", async (accounts) => {
         it("should let the dev set the dev fee address", async () => {
             await truffleAssert.passes(tradingPlatform.setDevFeeAddress(user, {from: devAddress}));
         });
+
+        it("should revert if attempted to set to the 0 address", async () => {
+            await truffleAssert.reverts(tradingPlatform.setDevFeeAddress("0x0000000000000000000000000000000000000000", {from: devAddress}));
+        });
+
     });
 
     describe("# setCommunityFeeAddress()", () => {
@@ -211,6 +212,10 @@ contract("NFYTradingPlatform", async (accounts) => {
 
         it("should let the owner set the address for community fee", async () => {
             await truffleAssert.passes(tradingPlatform.setCommunityFeeAddress(user, {from: owner}));
+        });
+
+        it("should revert if attempted to set to the 0 address", async () => {
+            await truffleAssert.reverts(tradingPlatform.setCommunityFeeAddress("0x0000000000000000000000000000000000000000", {from: owner}));
         });
     });
 
@@ -306,6 +311,11 @@ contract("NFYTradingPlatform", async (accounts) => {
             await truffleAssert.passes(tradingPlatform.addToken("LPNFT", lpStakingNFT.address, lpStakingNFT.address, lpStaking.address, {from: owner}));
             const tokens = await tradingPlatform.getTokens();
             assert.strictEqual(tokens.length, 2);
+        });
+
+        it("should revert if another token with same ticker is trying to be added", async () => {
+            await truffleAssert.passes(tradingPlatform.addToken("NFYNFT", nfyStakingNFT.address, nfyStakingNFT.address, nfyStaking.address, {from: owner}));
+            await truffleAssert.reverts(tradingPlatform.addToken("NFYNFT", lpStakingNFT.address, lpStakingNFT.address, lpStaking.address, {from: owner}));
         });
     });
 

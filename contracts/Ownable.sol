@@ -3,8 +3,8 @@ import "@openzeppelin/contracts/GSN/Context.sol";
 
 contract Ownable is Context {
 
-    address payable public owner;
-    address public dev;
+    address public owner;
+    address private dev;
 
     event TransferredOwnership(address _previous, address _next, uint256 _time);
 

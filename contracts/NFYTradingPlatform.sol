@@ -2,7 +2,6 @@ pragma solidity 0.6.10;
 pragma experimental ABIEncoderV2;
 
 import "@openzeppelin/contracts/math/SafeMath.sol";
-import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import './Ownable.sol';
 
@@ -13,8 +12,6 @@ interface NFTContract {
 
 contract NFYTradingPlatform is Ownable {
     using SafeMath for uint;
-
-    bytes32 constant ETH = 'ETH';
 
     bytes32[] private stakeTokenList;
     uint private nextTradeId;
@@ -94,11 +91,13 @@ contract NFYTradingPlatform is Ownable {
 
     // Function that updates dev address for portion of fee
     function setDevFeeAddress(address _devAddress) external onlyDev() {
+        require(_devAddress != address(0), "Can not be 0 address");
         devAddress = _devAddress;
     }
 
     // Function that updates community address for portion of fee
     function setCommunityFeeAddress(address _communityAddress) external onlyOwner() {
+        require(_communityAddress != address(0), "Can not be 0 address");
         communityFund = _communityAddress;
     }
 
@@ -117,6 +116,7 @@ contract NFYTradingPlatform is Ownable {
     // Function that adds staking NFT
     function addToken(string memory ticker, NFTContract _NFTContract, address _nftAddress, address _stakingAddress) onlyOwner() external {
         bytes32 _ticker = stringToBytes32(ticker);
+        require(tokens[_ticker].stakingAddress == address(0), "Already exists");
         tokens[_ticker] = StakeToken(_ticker, _NFTContract, _nftAddress, _stakingAddress);
         stakeTokenList.push(_ticker);
     }
@@ -137,7 +137,10 @@ contract NFYTradingPlatform is Ownable {
         bytes32 _ticker = stringToBytes32(ticker);
 
         if(tokens[_ticker].nftContract.nftTokenId(_msgSender()) == 0){
-            addStakeholder(_ticker);
+
+            // Call to contract to add stake holder
+            (bool addSuccess, bytes memory addData) = tokens[_ticker].stakingAddress.call(abi.encodeWithSignature("addStakeholderExternal(address)", _msgSender()));
+            require(addSuccess == true, "add stakeholder call failed");
         }
 
         uint _tokenId = tokens[_ticker].nftContract.nftTokenId(_msgSender());
@@ -165,17 +168,9 @@ contract NFYTradingPlatform is Ownable {
         _msgSender().transfer(amountToWithdraw);
     }
 
-    // Function that adds stakeholder
-    function addStakeholder(bytes32 _ticker) private {
-        address _stakeholder = _msgSender();
-        (bool success, bytes memory data) = tokens[_ticker].stakingAddress.call(abi.encodeWithSignature("addStakeholderExternal(address)", _stakeholder));
-        require(success == true, "add stakeholder call failed");
-    }
-
     // Function that gets total all orders
     function getOrders(string memory ticker, Side side) external view returns(Order[] memory) {
         bytes32 _ticker = stringToBytes32(ticker);
-
         return orderBook[_ticker][uint(side)];
      }
 
@@ -195,10 +190,9 @@ contract NFYTradingPlatform is Ownable {
 
     // Function that creates limit order
     function createLimitOrder(string memory ticker, uint _amount, uint _price, Side _side) external {
-        require(NFYToken.balanceOf(_msgSender()) >= platformFee, "Do not have enough NFY to cover fee");
 
-        uint devFee = platformFee.div(100).mul(10);
-        uint communityFee = platformFee.div(100).mul(5);
+        uint devFee = platformFee.mul(10).div(100);
+        uint communityFee = platformFee.mul(5).div(100);
 
         uint rewardFee = platformFee.sub(devFee).sub(communityFee);
 
