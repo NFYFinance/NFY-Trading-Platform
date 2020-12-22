@@ -146,10 +146,10 @@ contract NFYTradingPlatform is Ownable {
         uint _tokenId = tokens[_ticker].nftContract.nftTokenId(_msgSender());
         require(traderBalances[_msgSender()][_ticker] >= _amount, 'balance too low');
 
+        traderBalances[_msgSender()][_ticker] = traderBalances[_msgSender()][_ticker].sub(_amount);
+
         (bool success, bytes memory data) = tokens[_ticker].stakingAddress.call(abi.encodeWithSignature("incrementNFTValue(uint256,uint256)", _tokenId, _amount));
         require(success == true, "increment call failed");
-
-        traderBalances[_msgSender()][_ticker] = traderBalances[_msgSender()][_ticker].sub(_amount);
     }
 
     // Function that deposits eth
@@ -162,10 +162,9 @@ contract NFYTradingPlatform is Ownable {
         require(_amount > 0, "cannot withdraw 0 eth");
         require(ethBalance[_msgSender()] >= _amount, "Not enough eth in trading balance");
 
-        uint amountToWithdraw = _amount;
         ethBalance[_msgSender()] = ethBalance[_msgSender()].sub(_amount);
 
-        _msgSender().transfer(amountToWithdraw);
+        _msgSender().transfer(_amount);
     }
 
     // Function that gets total all orders
