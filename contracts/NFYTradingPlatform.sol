@@ -126,7 +126,7 @@ contract NFYTradingPlatform is Ownable {
         bytes32 _ticker = stringToBytes32(ticker);
         require(tokens[_ticker].nftContract.ownerOf(_tokenId) == _msgSender(), "Owner of token is not user");
 
-        (bool success, bytes memory data) = tokens[_ticker].stakingAddress.call(abi.encodeWithSignature("decrementNFTValue(uint256,uint256)", _tokenId, _amount));
+        (bool success, ) = tokens[_ticker].stakingAddress.call(abi.encodeWithSignature("decrementNFTValue(uint256,uint256)", _tokenId, _amount));
         require(success == true, "decrement call failed");
 
         traderBalances[_msgSender()][_ticker] = traderBalances[_msgSender()][_ticker].add(_amount);
@@ -139,7 +139,7 @@ contract NFYTradingPlatform is Ownable {
         if(tokens[_ticker].nftContract.nftTokenId(_msgSender()) == 0){
 
             // Call to contract to add stake holder
-            (bool addSuccess, bytes memory addData) = tokens[_ticker].stakingAddress.call(abi.encodeWithSignature("addStakeholderExternal(address)", _msgSender()));
+            (bool addSuccess, ) = tokens[_ticker].stakingAddress.call(abi.encodeWithSignature("addStakeholderExternal(address)", _msgSender()));
             require(addSuccess == true, "add stakeholder call failed");
         }
 
@@ -148,7 +148,7 @@ contract NFYTradingPlatform is Ownable {
 
         traderBalances[_msgSender()][_ticker] = traderBalances[_msgSender()][_ticker].sub(_amount);
 
-        (bool success, bytes memory data) = tokens[_ticker].stakingAddress.call(abi.encodeWithSignature("incrementNFTValue(uint256,uint256)", _tokenId, _amount));
+        (bool success, ) = tokens[_ticker].stakingAddress.call(abi.encodeWithSignature("incrementNFTValue(uint256,uint256)", _tokenId, _amount));
         require(success == true, "increment call failed");
     }
 
@@ -206,6 +206,7 @@ contract NFYTradingPlatform is Ownable {
     function _limitOrder(string memory ticker, uint _amount, uint _price, Side _side) stakeNFTExist(ticker) internal {
         bytes32 _ticker = stringToBytes32(ticker);
         require(_amount > 0, "Amount can not be 0");
+        require(_price > 0, "Price can not be 0");
 
         Order[] storage orders = orderBook[_ticker][uint(_side == Side.BUY ? Side.SELL : Side.BUY)];
         if(orders.length == 0){

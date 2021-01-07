@@ -6,8 +6,6 @@ contract Ownable is Context {
     address public owner;
     address private dev;
 
-    event TransferredOwnership(address _previous, address _next, uint256 _time);
-
     modifier onlyOwner() {
         require(_msgSender() == owner, "Owner only");
         _;
@@ -24,9 +22,7 @@ contract Ownable is Context {
     }
 
     function transferOwnership(address payable _owner) public onlyOwner() {
-        address previousOwner = owner;
         owner = _owner;
-        emit TransferredOwnership(previousOwner, owner, now);
     }
 
     function transferDev(address _dev) public onlyDev() {
